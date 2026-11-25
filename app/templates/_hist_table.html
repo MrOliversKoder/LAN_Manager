@@ -1,0 +1,5 @@
+<table class="grid"><thead><tr><th>Time</th><th>Check</th><th>Attempt</th><th>Result</th><th>Time</th><th>HTTP</th><th>Error</th></tr></thead>
+{% for h in hist %}<tr><td>{{ h.checked_at|localtime('%Y-%m-%d %H:%M:%S') }}</td><td>{{ h.check_type }}{% if h.target_port %}:{{ h.target_port }}{% endif %}</td>
+<td>{{ h.attempt_number }}{{ ' (final)' if h.is_final }}</td><td><span class="dot {{ h.status }}"></span> {{ h.status }}</td>
+<td>{{ h.response_time|ms }}</td><td>{{ h.http_status_code or '-' }}</td><td class="sub">{{ h.error_message or '' }}</td></tr>
+{% else %}<tr><td colspan="7" class="empty">No checks recorded yet.</td></tr>{% endfor %}</table>

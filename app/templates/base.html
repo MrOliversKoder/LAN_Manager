@@ -1,0 +1,33 @@
+<!doctype html>
+<html lang="en" data-theme="dark"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>{% block title %}{% endblock %} - LAN Manager</title>
+<script>try{document.documentElement.dataset.theme=localStorage.getItem('theme')||'dark'}catch(e){}</script>
+<link rel="stylesheet" href="{{ url_for('static', filename='style.css') }}">
+{% block head %}{% endblock %}</head>
+<body data-csrf="{{ csrf_token() }}">
+{% from "_m.html" import csrf with context %}
+<aside class="side">
+  <a class="brand" href="{{ url_for('inv.dashboard') }}">LAN Manager</a>
+  <form action="{{ url_for('inv.search') }}" class="srch"><input type="search" name="q" placeholder="Search everything" value="{{ q or '' }}"></form>
+  <nav>
+    {% set ep = request.endpoint or '' %}
+    <a href="{{ url_for('inv.dashboard') }}" class="{{ 'on' if ep == 'inv.dashboard' }}">Dashboard</a>
+    <a href="{{ url_for('inv.devices') }}" class="{{ 'on' if ep.startswith('inv.device') }}">Devices</a>
+    <a href="{{ url_for('inv.services') }}" class="{{ 'on' if ep.startswith('inv.service') }}">Services</a>
+    <a href="{{ url_for('cred.index') }}" class="{{ 'on' if ep.startswith('cred.') }}">Credentials</a>
+    <a href="{{ url_for('mon.monitoring') }}" class="{{ 'on' if ep.startswith('mon.mon') or ep == 'mon.run_now' }}">Monitoring</a>
+    <a href="{{ url_for('mon.history') }}" class="{{ 'on' if ep == 'mon.history' }}">History</a>
+    <a href="{{ url_for('mon.settings') }}" class="{{ 'on' if ep == 'mon.settings' }}">Settings</a>
+  </nav>
+  <div class="foot">
+    {% if unlocked %}<form method="post" action="{{ url_for('cred.lock') }}">{{ csrf() }}<button class="btn sm">Lock credentials</button></form>{% endif %}
+    <button class="btn sm" id="theme-toggle" type="button">Light / dark</button>
+  </div>
+</aside>
+<main>
+{% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
+{% block content %}{% endblock %}
+</main>
+<script src="{{ url_for('static', filename='app.js') }}"></script>
+</body></html>

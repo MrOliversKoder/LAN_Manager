@@ -1,0 +1,9 @@
+{% extends "base.html" %}{% from "_m.html" import dot, cred_table with context %}
+{% block title %}Search{% endblock %}
+{% block content %}
+<h1>Search{% if q %}: {{ q }}{% endif %}</h1>
+{% if not q %}<p class="empty">Type a name, IP address or description in the search box.</p>{% else %}
+<h2>Devices ({{ devices|length }})</h2><table class="grid">{% for d in devices %}<tr><td>{{ dot(dst[d.id].status) }}</td><td><a href="{{ url_for('inv.device_detail', id=d.id) }}">{{ d.name }}</a></td><td>{{ d.ip_address }}</td><td class="sub">{{ d.description or '' }}</td></tr>{% else %}<tr><td class="empty">No devices.</td></tr>{% endfor %}</table>
+<h2>Services ({{ services|length }})</h2><table class="grid">{% for s in services %}<tr><td>{{ dot(sst[s.id].status) }}</td><td><a href="{{ url_for('inv.service_detail', id=s.id) }}">{{ s.name }}</a></td><td>{{ s.host }}:{{ s.eff_port }}</td><td>{% if s.open_url %}<a class="btn sm" href="{{ s.open_url }}" target="_blank" rel="noopener">Open</a>{% endif %}</td></tr>{% else %}<tr><td class="empty">No services.</td></tr>{% endfor %}</table>
+<h2>Credentials</h2>{% if unlocked %}{{ cred_table(creds) }}{% else %}<p class="empty"><a href="{{ url_for('cred.unlock', next=request.full_path) }}">Unlock credentials</a> to include them in search.</p>{% endif %}
+{% endif %}{% endblock %}

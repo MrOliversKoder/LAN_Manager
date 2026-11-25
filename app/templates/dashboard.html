@@ -1,0 +1,26 @@
+{% extends "base.html" %}{% from "_m.html" import dot %}
+{% block title %}Dashboard{% endblock %}
+{% block content %}
+<h1>Dashboard</h1>
+<p class="summary">
+{% if mon.last_run %}Last check {{ mon.last_run|localtime }}: <b>{{ mon.online }}</b> online, <b>{{ mon.offline }}</b> offline.{% else %}No availability check has run yet.{% endif %}
+{% if mon.next_run %} Next check {{ mon.next_run|localtime }}.{% elif not mon.enabled %} Scheduled checks are off.{% endif %}
+<a href="{{ url_for('mon.monitoring') }}">Monitoring</a></p>
+
+<div class="bar"><h2>Services</h2><a class="btn" href="{{ url_for('inv.service_form') }}">Add service</a></div>
+<div class="tiles">
+{% for s in services %}{% set st = sst[s.id] %}
+<div class="tile {{ st.status }}">
+  {% if s.open_url %}<a class="open" href="{{ s.open_url }}" target="_blank" rel="noopener">{{ s.name }}</a>{% else %}<a class="open" href="{{ url_for('inv.service_detail', id=s.id) }}">{{ s.name }}</a>{% endif %}
+  <span class="sub">{{ s.device.name if s.device else 'No device' }} &middot; {{ s.host }}:{{ s.eff_port }}</span>
+  <span class="row">{{ dot(st.status) }}<a href="{{ url_for('inv.service_detail', id=s.id) }}" class="sub">Details</a></span>
+</div>
+{% else %}<p class="empty">No services yet. Add a device first, then add the services running on it.</p>{% endfor %}
+</div>
+
+<div class="bar"><h2>Devices</h2><a class="btn" href="{{ url_for('inv.device_form') }}">Add device</a></div>
+<table class="grid"><thead><tr><th></th><th>Name</th><th>IP</th><th>Type</th><th>Services</th></tr></thead>
+{% for d in devices %}<tr><td>{{ dot(dst[d.id].status) }}</td><td><a href="{{ url_for('inv.device_detail', id=d.id) }}">{{ d.name }}</a></td>
+<td>{{ d.ip_address }}</td><td>{{ d.device_type or '-' }}</td><td>{{ d.services|length }}</td></tr>
+{% else %}<tr><td colspan="5" class="empty">No devices yet.</td></tr>{% endfor %}</table>
+{% endblock %}

@@ -1,0 +1,21 @@
+{% extends "base.html" %}
+{% block title %}History{% endblock %}
+{% block content %}
+<h1>Monitoring history</h1>
+<form class="filters" method="get">
+<select name="target_type"><option value="">Devices and services</option>{% for v in ('device','service') %}<option value="{{ v }}" {{ 'selected' if args.get('target_type')==v }}>{{ v|capitalize }}s</option>{% endfor %}</select>
+<select name="status"><option value="">Any result</option><option value="online" {{ 'selected' if args.get('status')=='online' }}>Online</option><option value="offline" {{ 'selected' if args.get('status')=='offline' }}>Offline</option></select>
+<select name="check"><option value="">Any check</option>{% for v in ('ping','tcp','http') %}<option value="{{ v }}" {{ 'selected' if args.get('check')==v }}>{{ v }}</option>{% endfor %}</select>
+<label class="check"><input type="checkbox" name="final" value="1" {{ 'checked' if args.get('final')=='1' }}> Final results only</label>
+{% if args.get('target_id') %}<input type="hidden" name="target_id" value="{{ args.get('target_id') }}">{% endif %}
+<button class="btn">Filter</button></form>
+<table class="grid"><thead><tr><th>Time</th><th>Target</th><th>Check</th><th>Attempt</th><th>Result</th><th>Time</th><th>HTTP</th><th>Error</th></tr></thead>
+{% for h in rows %}<tr><td>{{ h.checked_at|localtime('%Y-%m-%d %H:%M:%S') }}</td>
+<td><a href="{{ url_for('inv.device_detail' if h.target_type=='device' else 'inv.service_detail', id=h.target_id) }}">{{ names[h.target_type].get(h.target_id, 'deleted') }}</a> <span class="sub">{{ h.target_host }}</span></td>
+<td>{{ h.check_type }}{% if h.target_port %}:{{ h.target_port }}{% endif %}</td><td>{{ h.attempt_number }}{{ ' (final)' if h.is_final }}</td>
+<td><span class="dot {{ h.status }}"></span> {{ h.status }}</td><td>{{ h.response_time|ms }}</td><td>{{ h.http_status_code or '-' }}</td><td class="sub">{{ h.error_message or '' }}</td></tr>
+{% else %}<tr><td colspan="8" class="empty">No results.</td></tr>{% endfor %}</table>
+<p class="pager">{% set base = args.to_dict() %}
+{% if page > 1 %}<a href="{{ url_for('mon.history', **dict(base, page=page-1)) }}">Newer</a>{% endif %}
+{% if more %}<a href="{{ url_for('mon.history', **dict(base, page=page+1)) }}">Older</a>{% endif %}</p>
+{% endblock %}

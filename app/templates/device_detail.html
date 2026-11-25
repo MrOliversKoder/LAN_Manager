@@ -1,0 +1,23 @@
+{% extends "base.html" %}{% from "_m.html" import dot, statustext, csrf with context %}
+{% block title %}{{ d.name }}{% endblock %}
+{% block content %}
+<div class="bar"><h1>{{ d.name }}</h1><span>
+<a class="btn" href="{{ url_for('inv.device_form', id=d.id) }}">Edit</a>
+<form method="post" action="{{ url_for('inv.device_delete', id=d.id) }}" class="inline" data-confirm="Delete this device and its {{ d.services|length }} service(s)? Their credentials are kept but unlinked.">{{ csrf() }}<button class="btn danger">Delete</button></form></span></div>
+<dl class="kv">
+<dt>Status</dt><dd>{{ statustext(s) }}{% if s.checked_at %} <span class="sub">checked {{ s.checked_at|localtime }}</span>{% endif %}</dd>
+<dt>Last successful check</dt><dd>{{ s.last_success|localtime }}</dd>
+<dt>Failed checks</dt><dd>{{ s.fails }}</dd>
+<dt>Response time</dt><dd>{{ s.response_time|ms }}</dd>
+<dt>Check method</dt><dd>{{ 'ICMP ping' if d.check_method == 'ping' else 'TCP port ' ~ d.check_port }}{% if not d.mon_enabled %} (monitoring off){% endif %}</dd>
+<dt>IP address</dt><dd>{{ d.ip_address }}</dd>
+<dt>Hostname</dt><dd>{{ d.hostname or '-' }}</dd><dt>Type</dt><dd>{{ d.device_type or '-' }}</dd>
+<dt>Description</dt><dd>{{ d.description or '-' }}</dd><dt>Notes</dt><dd class="pre">{{ d.notes or '-' }}</dd>
+<dt>Added</dt><dd>{{ d.created_at|localtime }}</dd></dl>
+<div class="bar"><h2>Services on this device</h2><a class="btn" href="{{ url_for('inv.service_form', device_id=d.id) }}">Add service</a></div>
+<table class="grid">{% for s2 in d.services %}<tr><td>{{ dot(sst[s2.id].status) }}</td><td><a href="{{ url_for('inv.service_detail', id=s2.id) }}">{{ s2.name }}</a></td><td>{{ s2.eff_port }}</td>
+<td>{% if s2.open_url %}<a class="btn sm" href="{{ s2.open_url }}" target="_blank" rel="noopener">Open</a>{% endif %}</td></tr>
+{% else %}<tr><td class="empty">No services yet.</td></tr>{% endfor %}</table>
+<div class="bar"><h2>Recent checks</h2><a href="{{ url_for('mon.history', target_type='device', target_id=d.id) }}">Full history</a></div>
+{% include "_hist_table.html" %}
+{% endblock %}

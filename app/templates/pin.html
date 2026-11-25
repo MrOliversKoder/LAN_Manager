@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% from "_m.html" import csrf with context %}
+{% block title %}Credentials{% endblock %}
+{% block content %}
+<div class="narrow"><h1>{{ 'Set a PIN' if mode == 'setup' else 'Credentials are locked' }}</h1>
+<p class="sub">{{ 'Choose a PIN (4-32 characters) to protect the credentials section.' if mode == 'setup' else 'Enter your PIN to continue.' }}</p>
+<form method="post" class="form">{{ csrf() }}<input type="hidden" name="next" value="{{ next }}">
+<label class="f"><span>PIN</span><input type="password" name="pin" autofocus autocomplete="off"></label>
+{% if mode == 'setup' %}<label class="f"><span>Repeat PIN</span><input type="password" name="confirm" autocomplete="off"></label>{% endif %}
+<button class="btn primary">{{ 'Save PIN' if mode == 'setup' else 'Unlock' }}</button></form></div>
+{% endblock %}

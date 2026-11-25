@@ -1,0 +1,17 @@
+{% extends "base.html" %}{% from "_m.html" import csrf with context %}
+{% block title %}Settings{% endblock %}
+{% block content %}
+<h1>Settings</h1>
+<form method="post" class="form">{{ csrf() }}
+<fieldset><legend>General</legend><div class="cols">
+<label class="f"><span>Auto-lock credentials after (minutes)</span><input name="cred_lock_minutes" value="{{ lock }}"><small>0 = never lock automatically</small></label>
+<label class="f"><span>Keep monitoring history (days)</span><input name="history_days" value="{{ keep }}"><small>0 = keep forever</small></label></div></fieldset>
+<button class="btn primary">Save settings</button></form>
+<form method="post" action="{{ url_for('mon.change_pin') }}" class="form">{{ csrf() }}
+<fieldset><legend>{{ 'Change PIN' if pin_set else 'Set PIN' }}</legend><div class="cols">
+{% if pin_set %}<label class="f"><span>Current PIN</span><input type="password" name="current" autocomplete="off"></label>{% endif %}
+<label class="f"><span>New PIN</span><input type="password" name="new" autocomplete="off"></label>
+<label class="f"><span>Repeat new PIN</span><input type="password" name="confirm" autocomplete="off"></label></div></fieldset>
+<button class="btn">{{ 'Change PIN' if pin_set else 'Set PIN' }}</button></form>
+<p class="sub">Schedule, timeouts and retries are on the <a href="{{ url_for('mon.monitoring') }}">Monitoring</a> page.</p>
+{% endblock %}

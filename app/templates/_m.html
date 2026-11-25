@@ -1,0 +1,28 @@
+{% macro csrf() %}<input type="hidden" name="csrf" value="{{ csrf_token() }}">{% endmacro %}
+{% macro dot(s) %}<span class="dot {{ s }}" title="{{ {'online':'Online','offline':'Offline'}.get(s,'Not checked') }}"></span>{% endmacro %}
+{% macro statustext(s) %}{{ dot(s.status) }} {{ {'online':'Online','offline':'Offline'}.get(s.status,'Not checked') }}{% endmacro %}
+{% macro field(label, name, data, errors, type='text', hint='', list='') %}
+<label class="f"><span>{{ label }}</span>
+<input type="{{ type }}" name="{{ name }}" value="{{ data.get(name) if data.get(name) is not none else '' }}"{% if list %} list="{{ list }}"{% endif %}>
+{% if hint %}<small>{{ hint }}</small>{% endif %}{% if errors.get(name) %}<em class="err">{{ errors[name] }}</em>{% endif %}</label>
+{% endmacro %}
+{% macro area(label, name, data, errors) %}
+<label class="f wide"><span>{{ label }}</span><textarea name="{{ name }}" rows="3">{{ data.get(name) or '' }}</textarea></label>
+{% endmacro %}
+{% macro select(label, name, data, errors, options, blank=None) %}
+<label class="f"><span>{{ label }}</span><select name="{{ name }}">
+{% if blank is not none %}<option value="">{{ blank }}</option>{% endif %}
+{% for v, l in options %}<option value="{{ v }}" {{ 'selected' if data.get(name)|string == v|string }}>{{ l }}</option>{% endfor %}
+</select>{% if errors.get(name) %}<em class="err">{{ errors[name] }}</em>{% endif %}</label>
+{% endmacro %}
+{% macro cred_table(creds, show_service=true) %}
+<table class="grid"><thead><tr><th>Description</th>{% if show_service %}<th>Service</th>{% endif %}<th>Username</th><th>Password</th><th></th></tr></thead>
+{% for c in creds %}<tr data-cred="{{ c.id }}" data-user="{{ c.username or '' }}">
+<td>{{ c.description or '-' }}{% if c.login_url %}<br><a href="{{ c.login_url }}" target="_blank" rel="noopener" class="sub">{{ c.login_url }}</a>{% endif %}{% if c.notes %}<br><span class="sub">{{ c.notes }}</span>{% endif %}</td>
+{% if show_service %}<td>{% if c.service %}<a href="{{ url_for('inv.service_detail', id=c.service.id) }}">{{ c.service.name }}</a>{% else %}-{% endif %}</td>{% endif %}
+<td>{{ c.username or '-' }} {% if c.username %}<button type="button" class="btn sm" data-act="copy-user">Copy</button>{% endif %}</td>
+<td>{% if c.encrypted_password %}<span class="pw">••••••••</span> <button type="button" class="btn sm" data-act="toggle">Show</button> <button type="button" class="btn sm" data-act="copy-pass">Copy</button>{% else %}-{% endif %}</td>
+<td class="act"><a class="btn sm" href="{{ url_for('cred.form', id=c.id, next=request.full_path) }}">Edit</a>
+<form method="post" action="{{ url_for('cred.delete', id=c.id) }}?next={{ request.full_path|urlencode }}" data-confirm="Delete this credential?" class="inline">{{ csrf() }}<button class="btn sm danger">Delete</button></form></td></tr>
+{% else %}<tr><td colspan="5" class="empty">No credentials stored yet.</td></tr>{% endfor %}</table>
+{% endmacro %}

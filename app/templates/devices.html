@@ -1,0 +1,13 @@
+{% extends "base.html" %}{% from "_m.html" import dot %}
+{% block title %}Devices{% endblock %}
+{% block content %}
+<div class="bar"><h1>Devices</h1><a class="btn" href="{{ url_for('inv.device_form') }}">Add device</a></div>
+<form class="filters" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Name, IP or description">
+<select name="status" onchange="this.form.submit()"><option value="">Any status</option>
+{% for v,l in [('online','Online'),('offline','Offline'),('unknown','Not checked')] %}<option value="{{ v }}" {{ 'selected' if status==v }}>{{ l }}</option>{% endfor %}</select>
+<button class="btn">Filter</button></form>
+<table class="grid"><thead><tr><th></th><th>Name</th><th>IP</th><th>Hostname</th><th>Type</th><th>Last success</th></tr></thead>
+{% for d in devices %}{% set s = st[d.id] %}<tr><td>{{ dot(s.status) }}</td><td><a href="{{ url_for('inv.device_detail', id=d.id) }}">{{ d.name }}</a><br><span class="sub">{{ d.description or '' }}</span></td>
+<td>{{ d.ip_address }}</td><td>{{ d.hostname or '-' }}</td><td>{{ d.device_type or '-' }}</td><td>{{ s.last_success|localtime }}</td></tr>
+{% else %}<tr><td colspan="6" class="empty">No devices match.</td></tr>{% endfor %}</table>
+{% endblock %}

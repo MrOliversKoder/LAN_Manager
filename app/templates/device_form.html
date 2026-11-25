@@ -1,0 +1,14 @@
+{% extends "base.html" %}{% from "_m.html" import field, area, csrf with context %}
+{% block title %}{{ 'Edit' if d else 'Add' }} device{% endblock %}
+{% block content %}
+<h1>{{ 'Edit ' ~ d.name if d else 'Add device' }}</h1>
+<form method="post" class="form">{{ csrf() }}
+<div class="cols">
+{{ field('Name', 'name', data, errors) }}{{ field('IP address', 'ip_address', data, errors) }}
+{{ field('Hostname', 'hostname', data, errors) }}{{ field('Type', 'device_type', data, errors, list='types') }}
+{{ field('Description', 'description', data, errors) }}</div>
+<datalist id="types">{% for t in types %}<option value="{{ t }}">{% endfor %}</datalist>
+{{ area('Notes', 'notes', data, errors) }}
+{% set kind = 'device' %}{% include "_monitoring_fields.html" %}
+<div class="bar"><button class="btn primary">Save device</button><a href="{{ url_for('inv.device_detail', id=d.id) if d else url_for('inv.devices') }}">Cancel</a></div>
+</form>{% endblock %}

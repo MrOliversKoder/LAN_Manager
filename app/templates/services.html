@@ -1,0 +1,16 @@
+{% extends "base.html" %}{% from "_m.html" import dot %}
+{% block title %}Services{% endblock %}
+{% block content %}
+<div class="bar"><h1>Services</h1><a class="btn" href="{{ url_for('inv.service_form') }}">Add service</a></div>
+<form class="filters" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Name, IP or description">
+<select name="device" onchange="this.form.submit()"><option value="">All devices</option>{% for d in devices %}<option value="{{ d.id }}" {{ 'selected' if dev==d.id }}>{{ d.name }}</option>{% endfor %}</select>
+<select name="mtype" onchange="this.form.submit()"><option value="">Any management</option>
+{% for v,l in [('direct','Direct access'),('external','Via another service'),('manual','Manual (SSH)')] %}<option value="{{ v }}" {{ 'selected' if mt==v }}>{{ l }}</option>{% endfor %}</select>
+<button class="btn">Filter</button></form>
+<table class="grid"><thead><tr><th></th><th>Name</th><th>Device</th><th>Address</th><th>Management</th><th></th></tr></thead>
+{% for s in services %}<tr><td>{{ dot(sst[s.id].status) }}</td><td><a href="{{ url_for('inv.service_detail', id=s.id) }}">{{ s.name }}</a><br><span class="sub">{{ s.description or '' }}</span></td>
+<td>{% if s.device %}<a href="{{ url_for('inv.device_detail', id=s.device.id) }}">{{ s.device.name }}</a>{% else %}-{% endif %}</td>
+<td>{{ s.host }}:{{ s.eff_port }}</td><td>{{ {'direct':'Direct','external':'Via ' ~ (s.management_service.name if s.management_service else 'other service'),'manual':'Manual'}[s.management_type] }}</td>
+<td>{% if s.open_url %}<a class="btn sm" href="{{ s.open_url }}" target="_blank" rel="noopener">Open</a>{% endif %}</td></tr>
+{% else %}<tr><td colspan="6" class="empty">No services match.</td></tr>{% endfor %}</table>
+{% endblock %}

@@ -1,0 +1,27 @@
+{% extends "base.html" %}{% from "_m.html" import field, area, select, csrf with context %}
+{% block title %}{{ 'Edit' if s else 'Add' }} service{% endblock %}
+{% block content %}
+<h1>{{ 'Edit ' ~ s.name if s else 'Add service' }}</h1>
+<form method="post" class="form">{{ csrf() }}
+<div class="cols">
+{{ field('Name', 'name', data, errors) }}{{ field('Description', 'description', data, errors) }}
+{{ select('Device', 'device_id', data, errors, devices|map(attribute='id')|zip(devices|map(attribute='name'))|list, blank='None') }}
+{{ field('IP address', 'ip_address', data, errors, hint='Blank = use the device IP') }}
+{{ field('Port', 'port', data, errors, hint='Blank = 80 / 443 by protocol') }}
+{{ select('Protocol', 'protocol', data, errors, [('http','HTTP'),('https','HTTPS')]) }}
+{{ field('Access path', 'access_path', data, errors, hint='Optional, e.g. /admin') }}
+{{ field('Quick access URL', 'quick_access_url', data, errors, hint='Overrides the generated URL') }}</div>
+{{ area('Notes', 'notes', data, errors) }}
+<fieldset><legend>How it is managed</legend>
+{{ select('Management type', 'management_type', data, errors, [('direct','Direct access (own web interface)'),('external','Managed through another service'),('manual','Manual (SSH / terminal)')]) }}
+<div class="cols" data-mt="external">
+{{ select('Management service', 'management_service_id', data, errors, others|map(attribute='id')|zip(others|map(attribute='name'))|list, blank='None') }}
+{{ field('Management URL', 'management_url', data, errors, hint='Optional custom URL') }}</div>
+<div class="cols" data-mt="manual">
+{{ field('SSH host', 'ssh_host', data, errors) }}{{ field('SSH port', 'ssh_port', data, errors) }}{{ field('SSH username', 'ssh_username', data, errors) }}</div>
+<div data-mt="external manual direct">{{ area('Management instructions', 'management_notes', data, errors) }}</div>
+</fieldset>
+{% set kind = 'service' %}{% include "_monitoring_fields.html" %}
+<div class="bar"><button class="btn primary">Save service</button><a href="{{ url_for('inv.service_detail', id=s.id) if s else url_for('inv.services') }}">Cancel</a></div>
+<p class="sub">Usernames and passwords are stored in Credentials (encrypted, PIN-protected). Add them from the service page after saving.</p>
+</form>{% endblock %}

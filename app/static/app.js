@@ -35,8 +35,8 @@
     });
   }
 
-  function reveal(id) {
-    return fetch('/credentials/' + id + '/reveal', { method: 'POST', headers: { 'X-CSRF': csrf } }).then(function (r) {
+  function reveal(id, field) {
+    return fetch('/credentials/' + id + '/reveal?field=' + field, { method: 'POST', headers: { 'X-CSRF': csrf } }).then(function (r) {
       if (r.status === 401) { location.href = '/login'; return null; }
       if (r.status === 403) { location.href = '/credentials/unlock?next=' + encodeURIComponent(location.pathname + location.search); return null; }
       return r.json().then(function (j) { if (!r.ok) { alert(j.error || 'Failed'); return null; } return j.password; });
@@ -51,16 +51,17 @@
   document.addEventListener('click', function (e) {
     var b = e.target.closest('[data-act]');
     if (!b) return;
-    var row = b.closest('[data-cred]'), act = b.dataset.act, pw = row.querySelector('.pw');
+    var row = b.closest('[data-cred]'), act = b.dataset.act, box = b.closest('.secret');
     if (act === 'copy-user') {
       copy(row.dataset.user).then(function () { flash(b, 'Copied'); }, function () { flash(b, 'Failed'); });
-    } else if (act === 'copy-pass') {
-      reveal(row.dataset.cred).then(function (p) {
+    } else if (act === 'copy-secret') {
+      reveal(row.dataset.cred, box.dataset.field).then(function (p) {
         if (p !== null) copy(p).then(function () { flash(b, 'Copied'); }, function () { flash(b, 'Failed'); });
       });
     } else if (act === 'toggle') {
+      var pw = box.querySelector('.pw');
       if (b.textContent === 'Hide') { pw.textContent = '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022'; b.textContent = 'Show'; return; }
-      reveal(row.dataset.cred).then(function (p) { if (p !== null) { pw.textContent = p || '(empty)'; b.textContent = 'Hide'; } });
+      reveal(row.dataset.cred, box.dataset.field).then(function (p) { if (p !== null) { pw.textContent = p || '(empty)'; b.textContent = 'Hide'; } });
     }
   });
 })();
@@ -116,3 +117,17 @@ document.addEventListener('click', function (e) {
 document.addEventListener('keydown', function (e) {
   if (e.key === 'Escape') { var d = document.querySelector('details.user[open]'); if (d) d.removeAttribute('open'); }
 });
+
+// Credential form: show only the fields that make sense for the chosen type.
+(function () {
+  var kind = document.querySelector('select[name=kind]');
+  if (!kind) return;
+  var sync = function () {
+    document.querySelectorAll('[data-kinds]').forEach(function (el) {
+      el.hidden = el.dataset.kinds.split(' ').indexOf(kind.value) < 0;
+    });
+    var port = document.querySelector('input[name=port]');
+    if (port) port.placeholder = kind.value === 'ssh' ? '22' : kind.value === 'web' ? '80, 443, 8080...' : '';
+  };
+  kind.addEventListener('change', sync); sync();
+})();

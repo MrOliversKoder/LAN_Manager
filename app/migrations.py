@@ -21,6 +21,10 @@ MIGRATIONS = [
          "ALTER TABLE devices ADD COLUMN web_port INTEGER",
          "ALTER TABLE devices ADD COLUMN web_path VARCHAR(300)",
          "ALTER TABLE devices ADD COLUMN web_url VARCHAR(500)"]),  # users/groups tables come from create_all
+    (3, ["ALTER TABLE credentials ADD COLUMN device_id INTEGER REFERENCES devices(id) ON DELETE SET NULL",
+         "ALTER TABLE credentials ADD COLUMN kind VARCHAR(12) NOT NULL DEFAULT 'login'",
+         "ALTER TABLE credentials ADD COLUMN port INTEGER",
+         "ALTER TABLE credentials ADD COLUMN encrypted_api_key TEXT DEFAULT ''"]),
 ]  # list of (version, [sql statements]); version 1 is the baseline
 LATEST = 1 + len(MIGRATIONS)
 

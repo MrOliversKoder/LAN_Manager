@@ -73,3 +73,6 @@ fieldset{border:1px solid var(--line);border-radius:var(--radius);padding:.9rem;
 .attach{display:flex;gap:.5rem;flex-wrap:wrap;align-items:center;margin-top:.75rem}.attach select{width:auto;min-width:240px;flex:1}
 @media(max-width:860px){body{flex-direction:column}.side{width:auto;height:auto;position:static;flex-direction:row;flex-wrap:wrap;align-items:center;padding:.6rem}
 .side nav{flex-direction:row;flex-wrap:wrap}.top{padding:.5rem .75rem;flex-wrap:wrap}.who{display:none}main{padding:1rem}.kv{grid-template-columns:1fr}.grid{display:block;overflow-x:auto}}
+
+.badge{display:inline-block;padding:0 .5rem;border-radius:999px;background:var(--bg);border:1px solid var(--line);font-size:.75rem;color:var(--mute)}
+.secret{display:flex;align-items:center;gap:.4rem;flex-wrap:wrap;margin:.1rem 0}.secret .lbl{color:var(--mute);font-size:.8rem;min-width:4.2rem}.secret .pw{font-family:ui-monospace,Menlo,Consolas,monospace;overflow-wrap:anywhere}

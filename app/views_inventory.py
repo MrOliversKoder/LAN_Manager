@@ -77,9 +77,10 @@ def search():
             Service.name.ilike(like), Service.description.ilike(like), Service.ip_address.ilike(like),
             Device.ip_address.ilike(like), Device.name.ilike(like))).order_by(Service.name).all()
         if auth.can("cred_view") and security.is_unlocked():
-            creds = Credential.query.outerjoin(Service).filter(or_(
-                Credential.description.ilike(like), Credential.username.ilike(like),
-                Credential.login_url.ilike(like), Service.name.ilike(like))).all()
+            creds = Credential.query.outerjoin(Service, Credential.service_id == Service.id).outerjoin(
+                Device, Credential.device_id == Device.id).filter(or_(
+                Credential.description.ilike(like), Credential.username.ilike(like), Credential.login_url.ilike(like),
+                Service.name.ilike(like), Device.name.ilike(like))).all()
     return render_template("search.html", q=q, devices=devices, services=services, creds=creds,
                            dst=monitor.summaries("device"), sst=monitor.summaries("service"))
 

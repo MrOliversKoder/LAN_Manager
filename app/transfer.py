@@ -12,7 +12,7 @@ from sqlalchemy import func
 from werkzeug.security import generate_password_hash
 
 from . import auth, monitor, security, settings as S, validators as V
-from .models import db, Credential, Device, Group, MonitorHistory as H, Service, Setting, User
+from .models import db, CRED_KINDS, Credential, Device, Group, MonitorHistory as H, Service, Setting, User
 
 log = logging.getLogger(__name__)
 
@@ -36,7 +36,8 @@ COLUMNS = {
                  "management_type", "management_service_name", "management_url", "ssh_host", "ssh_port", "ssh_username",
                  "management_notes", "notes", "check_method", "http_expected", "mon_enabled", "timeout", "retries",
                  "retry_delay", "created_at"],
-    "credentials": ["service_name", "description", "username", "password", "login_url", "notes"],
+    "credentials": ["device_name", "service_name", "kind", "description", "username", "password", "api_key", "port",
+                    "login_url", "notes"],
     "history": ["checked_at", "target_type", "target_name", "check_type", "status", "response_time_ms", "http_status_code",
                 "error_message", "attempt_number", "is_final", "target_host", "target_port", "run_id"],
 }
@@ -103,9 +104,10 @@ def _rows(key):
             yield row
     elif key == "credentials":
         for c in Credential.query.order_by(Credential.id):
-            yield dict(service_name=c.service.name if c.service else None, description=c.description,
-                       username=c.username, password=security.decrypt(c.encrypted_password) or "",
-                       login_url=c.login_url, notes=c.notes)
+            yield dict(device_name=c.device.name if c.device else None, service_name=c.service.name if c.service else None,
+                       kind=c.kind, description=c.description, username=c.username,
+                       password=security.decrypt(c.encrypted_password) or "", api_key=security.decrypt(c.encrypted_api_key) or "",
+                       port=c.port, login_url=c.login_url, notes=c.notes)
     elif key == "history":
         names = {"device": {d.id: d.name for d in Device.query}, "service": {s.id: s.name for s in Service.query}}
         for h in H.query.order_by(H.id).yield_per(1000):
@@ -140,12 +142,12 @@ def detect(headers):
         return "settings"
     if "target_type" in h:
         return "history"
+    if "password" in h and ("service_name" in h or "kind" in h):
+        return "credentials"                       # before services: credentials also carry a device_name column
     if "device_name" in h:
         return "services"
     if "password_hash" in h or {"username", "group_name"} <= h:
         return "users"
-    if {"service_name", "password"} <= h:
-        return "credentials"
     if "permissions" in h:
         return "groups"
     if {"name", "ip_address"} <= h:
@@ -335,21 +337,30 @@ def _second_pass_services(rows, update):
 def _import_credentials(row, update, stats, me):
     if not security.is_unlocked():
         raise ValueError("unlock the credentials PIN first")
-    svc_name = _s(row, "service_name")
+    svc_name, dev_name = _s(row, "service_name"), _s(row, "device_name")
     service = Service.query.filter(func.lower(Service.name) == svc_name.lower()).first() if svc_name else None
+    device = Device.query.filter(func.lower(Device.name) == dev_name.lower()).first() if dev_name else None
     if svc_name and not service:
         raise ValueError(f"unknown service {svc_name!r}")
+    if dev_name and not device:
+        raise ValueError(f"unknown device {dev_name!r}")
+    kind = V.choice(_s(row, "kind") or "login", tuple(k for k, _ in CRED_KINDS))
     username, desc = _s(row, "username"), _s(row, "description")
-    if not username and not row.get("password"):
-        raise ValueError("needs a username or a password")
-    c = Credential.query.filter_by(service_id=service.id if service else None, username=username, description=desc).first()
+    if not username and not row.get("password") and not row.get("api_key"):
+        raise ValueError("needs a username, a password or an API key")
+    port, url = V.port(row.get("port")), V.url(row.get("login_url"))
+    c = Credential.query.filter_by(service_id=service.id if service else None, device_id=device.id if device else None,
+                                   kind=kind, username=username, description=desc).first()
 
     def apply():
         cred = c or Credential()
-        cred.service_id, cred.username, cred.description = (service.id if service else None), username, desc
-        cred.login_url, cred.notes = V.url(row.get("login_url")), _s(row, "notes")
+        cred.service_id, cred.device_id = (service.id if service else None), (device.id if device else None)
+        cred.kind, cred.username, cred.description, cred.port = kind, username, desc, port
+        cred.login_url, cred.notes = url, _s(row, "notes")
         if row.get("password") or not c:
             cred.encrypted_password = security.encrypt(row.get("password") or "")
+        if row.get("api_key") or not c:
+            cred.encrypted_api_key = security.encrypt(row.get("api_key") or "")
         db.session.add(cred)
     _upsert(stats, c, update, apply)
 

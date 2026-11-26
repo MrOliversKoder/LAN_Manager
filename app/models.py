@@ -119,16 +119,24 @@ class Service(Stamped, Monitored, db.Model):
         return f"ssh {user}{self.ssh_host}{port}"
 
 
+CRED_KINDS = [("login", "Login"), ("ssh", "SSH"), ("web", "Web login"), ("api_key", "API key"), ("other", "Other")]
+
+
 class Credential(Stamped, db.Model):
     __tablename__ = "credentials"
     id = db.Column(db.Integer, primary_key=True)
     service_id = db.Column(db.Integer, db.ForeignKey("services.id", ondelete="SET NULL"))
+    device_id = db.Column(db.Integer, db.ForeignKey("devices.id", ondelete="SET NULL"))
+    kind = db.Column(db.String(12), default="login", nullable=False)   # login | ssh | web | api_key | other
+    port = db.Column(db.Integer)                                       # e.g. 22 for SSH, 8080 for a web login
+    encrypted_api_key = db.Column(db.Text, default="")
     username = db.Column(db.String(200))
     encrypted_password = db.Column(db.Text, default="")
     login_url = db.Column(db.String(500))
     description = db.Column(db.String(500))
     notes = db.Column(db.Text)
     service = db.relationship("Service", backref=db.backref("credentials", order_by="Credential.id"))
+    device = db.relationship("Device", backref=db.backref("credentials", order_by="Credential.id"))
 
 
 class MonitorHistory(db.Model):

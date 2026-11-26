@@ -15,13 +15,15 @@
 {% for v, l in options %}<option value="{{ v }}" {{ 'selected' if data.get(name)|string == v|string }}>{{ l }}</option>{% endfor %}
 </select>{% if errors.get(name) %}<em class="err">{{ errors[name] }}</em>{% endif %}</label>
 {% endmacro %}
-{% macro cred_table(creds, show_service=true) %}
-<table class="grid"><thead><tr><th>Description</th>{% if show_service %}<th>Service</th>{% endif %}<th>Username</th><th>Password</th><th></th></tr></thead>
+{% macro secret(c, field, label, token) %}{% if token %}<div class="secret" data-field="{{ field }}"><span class="lbl">{{ label }}</span> <span class="pw">••••••••</span> <button type="button" class="btn sm" data-act="toggle">Show</button> <button type="button" class="btn sm" data-act="copy-secret">Copy</button></div>{% endif %}{% endmacro %}
+{% macro cred_table(creds, show_link=true) %}
+<table class="grid"><thead><tr><th>Credential</th>{% if show_link %}<th>Belongs to</th>{% endif %}<th>Username</th><th>Secrets</th><th></th></tr></thead>
 {% for c in creds %}<tr data-cred="{{ c.id }}" data-user="{{ c.username or '' }}">
-<td>{{ c.description or '-' }}{% if c.login_url %}<br><a href="{{ c.login_url }}" target="_blank" rel="noopener" class="sub">{{ c.login_url }}</a>{% endif %}{% if c.notes %}<br><span class="sub">{{ c.notes }}</span>{% endif %}</td>
-{% if show_service %}<td>{% if c.service %}<a href="{{ url_for('inv.service_detail', id=c.service.id) }}">{{ c.service.name }}</a>{% else %}-{% endif %}</td>{% endif %}
+<td><span class="badge">{{ {'login':'Login','ssh':'SSH','web':'Web','api_key':'API key','other':'Other'}[c.kind] }}</span>{% if c.port %} <span class="sub">port {{ c.port }}</span>{% endif %}
+<br>{{ c.description or '-' }}{% if c.login_url %}<br><a href="{{ c.login_url }}" target="_blank" rel="noopener" class="sub">{{ c.login_url }}</a>{% endif %}{% if c.notes %}<br><span class="sub">{{ c.notes }}</span>{% endif %}</td>
+{% if show_link %}<td>{% if c.device %}<a href="{{ url_for('inv.device_detail', id=c.device.id) }}">{{ c.device.name }}</a> <span class="sub">device</span>{% endif %}{% if c.device and c.service %}<br>{% endif %}{% if c.service %}<a href="{{ url_for('inv.service_detail', id=c.service.id) }}">{{ c.service.name }}</a> <span class="sub">service</span>{% endif %}{% if not c.device and not c.service %}-{% endif %}</td>{% endif %}
 <td>{{ c.username or '-' }} {% if c.username %}<button type="button" class="btn sm" data-act="copy-user">Copy</button>{% endif %}</td>
-<td>{% if c.encrypted_password %}<span class="pw">••••••••</span> <button type="button" class="btn sm" data-act="toggle">Show</button> <button type="button" class="btn sm" data-act="copy-pass">Copy</button>{% else %}-{% endif %}</td>
+<td>{{ secret(c, 'password', 'Password', c.encrypted_password) }}{{ secret(c, 'api_key', 'API key', c.encrypted_api_key) }}{% if not c.encrypted_password and not c.encrypted_api_key %}-{% endif %}</td>
 <td class="act">{% if can('cred_manage') %}<a class="btn sm" href="{{ url_for('cred.form', id=c.id, next=request.full_path) }}">Edit</a>
 <form method="post" action="{{ url_for('cred.delete', id=c.id) }}?next={{ request.full_path|urlencode }}" data-confirm="Delete this credential?" class="inline">{{ csrf() }}<button class="btn sm danger">Delete</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" class="empty">No credentials stored yet.</td></tr>{% endfor %}</table>

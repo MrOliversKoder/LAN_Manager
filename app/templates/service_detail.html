@@ -24,7 +24,7 @@
 {% else %}Manual{% if s.ssh_command %}: <code>{{ s.ssh_command }}</code>{% endif %}{% endif %}</dd>
 {% if s.management_notes %}<dt>How to manage</dt><dd class="pre">{{ s.management_notes }}</dd>{% endif %}
 <dt>Notes</dt><dd class="pre">{{ s.notes or '-' }}</dd></dl>
-{% if can('cred_view') %}<div class="bar"><h2>Credentials</h2>{% if unlocked and can('cred_manage') %}<a class="btn" href="{{ url_for('cred.form', service_id=s.id, next=request.path) }}">Add credential</a>{% endif %}</div>
+{% if can('cred_view') %}<div class="bar"><h2>Credentials</h2>{% if unlocked and can('cred_manage') %}<span><a class="btn" href="{{ url_for('cred.form', service_id=s.id, kind='web', next=request.path) }}">Add web login</a> <a class="btn" href="{{ url_for('cred.form', service_id=s.id, kind='api_key', next=request.path) }}">Add API key</a> <a class="btn" href="{{ url_for('cred.form', service_id=s.id, next=request.path) }}">Add other</a></span>{% endif %}</div>
 {% if unlocked %}{{ cred_table(s.credentials, false) }}
 {% else %}<p class="empty">{{ s.credentials|length }} credential(s) stored. <a href="{{ url_for('cred.unlock', next=request.path) }}">Unlock with PIN</a> to view them.</p>{% endif %}{% endif %}
 </div>

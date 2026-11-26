@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_m.html" import dot, statuscard, csrf with context %}
+{% extends "base.html" %}{% from "_m.html" import dot, statuscard, cred_table, csrf with context %}
 {% block title %}{{ d.name }}{% endblock %}
 {% block head %}{% if checking %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
 {% block content %}
@@ -31,6 +31,9 @@
 <form method="post" action="{{ url_for('inv.device_link_by_ip', id=d.id) }}" class="attach">{{ csrf() }}
 <button class="btn">Link services that have IP {{ d.ip_address }}</button><span class="sub">Services without a device and with this IP are attached automatically.</span></form>
 {% endif %}
+{% if can('cred_view') %}<div class="bar"><h2>Credentials</h2>{% if unlocked and can('cred_manage') %}<span><a class="btn" href="{{ url_for('cred.form', device_id=d.id, kind='ssh', next=request.path) }}">Add SSH</a> <a class="btn" href="{{ url_for('cred.form', device_id=d.id, kind='web', next=request.path) }}">Add web login</a> <a class="btn" href="{{ url_for('cred.form', device_id=d.id, kind='api_key', next=request.path) }}">Add API key</a></span>{% endif %}</div>
+{% if unlocked %}{{ cred_table(d.credentials, false) }}
+{% else %}<p class="empty">{{ d.credentials|length }} credential(s) stored. <a href="{{ url_for('cred.unlock', next=request.path) }}">Unlock with PIN</a> to view them.</p>{% endif %}{% endif %}
 </div>
 {% if can('history') %}<div>
 <div class="bar"><h2>Recent checks</h2><a href="{{ url_for('mon.history', target_type='device', target_id=d.id) }}">Full history</a></div>

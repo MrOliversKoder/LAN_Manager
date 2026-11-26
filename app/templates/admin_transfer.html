@@ -1,0 +1,29 @@
+{% extends "base.html" %}{% from "_m.html" import csrf with context %}
+{% block title %}Export and import{% endblock %}
+{% block content %}
+{% include "_admin_tabs.html" %}
+<div class="split">
+<div class="card"><h2>Export</h2>
+<p class="sub">Tick what to export. One item downloads as a .csv file; several are bundled into one .zip with a .csv per item.</p>
+<form method="post" action="{{ url_for('admin.export') }}">{{ csrf() }}
+<div class="checklist">
+<label class="check"><input type="checkbox" id="all-items"> <b>Select everything</b></label>
+{% for k, label, hint in items %}<label class="check"><input type="checkbox" name="items" value="{{ k }}"> {{ label }}<span class="sub">{{ hint }}</span></label>{% endfor %}
+</div><button class="btn primary">Download export</button></form></div>
+
+<div class="card"><h2>Import</h2>
+<p class="sub">Upload CSV files (or a ZIP) made by the export. The type of each file is recognised from its columns and files are imported in the right order (groups before users, devices before services).</p>
+<form method="post" action="{{ url_for('admin.import_') }}" enctype="multipart/form-data" class="form">{{ csrf() }}
+<label class="f"><span>Files</span><input type="file" name="files" accept=".csv,.zip" multiple></label>
+<fieldset><legend>Items that already exist</legend>
+<label class="check"><input type="radio" name="mode" value="skip" checked> Skip them (only add new items)</label>
+<label class="check"><input type="radio" name="mode" value="update"> Update them from the file</label></fieldset>
+<button class="btn primary">Import</button>
+<p class="sub">Matching: devices and services by name, users by username, groups by name, settings by key, history by target + time. Rows with errors are skipped and listed below. Importing credentials needs an unlocked PIN session.</p></form></div>
+</div>
+{% if result %}<div class="bar"><h2>Import result</h2></div>
+<table class="grid"><thead><tr><th>File</th><th>Type</th><th>Created</th><th>Updated</th><th>Skipped</th><th>Problems</th></tr></thead>
+{% for r in result %}<tr><td>{{ r.file }}</td><td>{{ r.kind }}</td>
+{% if r.error %}<td colspan="3"></td><td class="err">{{ r.error }}</td>{% else %}<td>{{ r.created }}</td><td>{{ r.updated }}</td><td>{{ r.skipped }}</td>
+<td>{% if r.errors %}<span class="err">{{ r.errors|length }} row(s) skipped</span><br><span class="sub">{% for e in r.errors[:10] %}{{ e }}<br>{% endfor %}{% if r.errors|length > 10 %}... and {{ r.errors|length - 10 }} more{% endif %}</span>{% else %}-{% endif %}</td>{% endif %}</tr>{% endfor %}</table>{% endif %}
+{% endblock %}

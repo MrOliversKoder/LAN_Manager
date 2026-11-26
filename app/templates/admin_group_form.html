@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% from "_m.html" import field, csrf with context %}
 {% block title %}{{ 'Edit' if g else 'Add' }} group{% endblock %}
 {% block content %}
+{% include "_admin_tabs.html" %}
 <h1>{{ 'Edit ' ~ g.name if g else 'Add group' }}</h1>
 <form method="post" class="form">{{ csrf() }}<div class="cols">{{ field('Name', 'name', data, errors) }}{{ field('Description', 'description', data, errors) }}</div>
 <fieldset><legend>Permissions</legend>

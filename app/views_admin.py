@@ -1,10 +1,15 @@
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from datetime import datetime
+
+from flask import Blueprint, Response, abort, flash, redirect, render_template, request, url_for
 from werkzeug.security import generate_password_hash
 
-from . import auth, validators as V
+import logging
+
+from . import auth, security, transfer, validators as V
 from .models import db, Group, User
 
 bp = Blueprint("admin", __name__, url_prefix="/admin")
+log = logging.getLogger(__name__)
 
 
 @bp.before_request
@@ -129,3 +134,51 @@ def group_delete(id):
         db.session.commit()
         flash("Group deleted", "ok")
     return redirect(url_for("admin.groups"))
+
+
+# ---- export / import ---------------------------------------------------------------------------
+@bp.route("/transfer")
+def transfer_page():
+    return render_template("admin_transfer.html", items=transfer.ITEMS, result=None)
+
+
+@bp.route("/transfer/export", methods=["POST"])
+def export():
+    valid = [k for k, _l, _h in transfer.ITEMS]
+    keys = [k for k in valid if k in request.form.getlist("items")]       # keeps the canonical order
+    if not keys:
+        flash("Tick at least one item to export", "err")
+        return redirect(url_for("admin.transfer_page"))
+    if "credentials" in keys and not security.is_unlocked():
+        flash("Exporting credentials needs the credentials PIN: unlock first, then export again", "err")
+        return redirect(url_for("cred.unlock", next=url_for("admin.transfer_page")))
+    stamp = datetime.now().strftime("%Y-%m-%d_%H%M")
+    log.info("User %s exported: %s", auth.current_user().username, ", ".join(keys))
+    if len(keys) == 1:
+        body, mime, name = transfer.export_csv(keys[0]), "text/csv; charset=utf-8", f"lan-manager-{keys[0]}-{stamp}.csv"
+    else:
+        body, mime, name = transfer.export_zip(keys, stamp), "application/zip", f"lan-manager-export-{stamp}.zip"
+    return Response(body, mimetype=mime, headers={"Content-Disposition": f'attachment; filename="{name}"',
+                                                  "Cache-Control": "no-store"})
+
+
+@bp.route("/transfer/import", methods=["POST"])
+def import_():
+    uploads = [f for f in request.files.getlist("files") if f and f.filename]
+    if not uploads:
+        flash("Choose one or more CSV or ZIP files", "err")
+        return redirect(url_for("admin.transfer_page"))
+    update = request.form.get("mode") == "update"
+    order = [k for k, _l, _h in transfer.ITEMS]
+    loaded = list(transfer.read_files(uploads))
+    loaded.sort(key=lambda t: order.index(t[1]) if t[1] in order else 99)     # parents before children
+    result = []
+    for name, kind, payload in loaded:
+        if kind is None:
+            result.append(dict(file=name, kind="-", error=payload))
+            continue
+        stats = transfer.import_rows(kind, payload, update)
+        log.info("User %s imported %s from %s: %s", auth.current_user().username, kind, name,
+                 {k: (v if k != "errors" else len(v)) for k, v in stats.items()})
+        result.append(dict(file=name, kind=kind, **stats))
+    return render_template("admin_transfer.html", items=transfer.ITEMS, result=result)

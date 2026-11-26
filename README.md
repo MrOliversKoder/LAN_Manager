@@ -51,6 +51,19 @@ For devices with no port entered it also probes common ports (22, 80, 443, 445, 
 Methods: devices - ICMP ping, TCP port, HTTP request; services - TCP, TCP + HTTP, HTTP only, ping. Per-target timeout/retries/delay override the global ones.
 Devices can have an optional web address (protocol/port/path or a custom URL) which gives them an **Open** button on the dashboard and lists.
 
+## Checking, and linking services to devices
+* **Check now** on every device and service page runs that one check immediately (with its normal retries); the page refreshes until the result is in. Needs the *Run checks* permission.
+* A service belongs to a device when you pick it in the service form, **or automatically when both share an IP address**: saving a device links existing unassigned services with that IP, and saving a service without a device links it to the device with the same IP.
+* On a device page you can also **attach any existing service** from a list (unassigned ones first; a service on another device is moved), or press *Link services that have IP ...*.
+
+## Export and import (Admin > Export & import)
+Admin only. Tick any combination of: settings, groups, users, devices, services, credentials, monitoring history.
+One item downloads as a `.csv`; several download as one `.zip` with a `.csv` per item. Files open in Excel (UTF-8).
+* Relations are stored by name (a service has `device_name`, a credential `service_name`), so files can be imported into a fresh installation.
+* **Users** include password hashes (not readable passwords); **credentials** include passwords in plain text and require an unlocked PIN session. Treat those files like a password list.
+* Import accepts CSV or ZIP, recognises each file by its columns and imports parents before children. Choose to skip existing items or update them. Bad rows are skipped and listed with their row number.
+* Cells that start with `= + @` are prefixed with `'` on export to stop spreadsheet formula injection, and the prefix is removed again on import.
+
 ## Scheduler
 Runs inside the app, independent of browsers. Fixed job IDs mean restarts cannot duplicate jobs; one catch-up run happens after downtime if a run was missed; only one run at a time.
 
@@ -74,4 +87,4 @@ Restore into a new container: `docker cp ./lan-backup/. lan-manager:/home/user/A
 `PRAGMA user_version` tracks the schema (now version 2). On start, an existing database is copied to `lan_manager.db.bak-v<N>` and pending steps in `app/migrations.py` run. To change the schema, edit `models.py` and append a step to `MIGRATIONS`.
 
 ## Layout
-`__main__.py` - `app/`: `models`, `auth` (users/groups/permissions), `monitor` (checks, test, scheduler), `security`, `settings`, `validators`, `migrations`, `views_*`, `templates/`, `static/`.
+`__main__.py` - `app/`: `models`, `auth` (users/groups/permissions), `transfer` (CSV export/import), `monitor` (checks, test, scheduler), `security`, `settings`, `validators`, `migrations`, `views_*`, `templates/`, `static/`.

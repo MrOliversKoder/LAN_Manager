@@ -26,3 +26,8 @@
 <form method="post" action="{{ url_for('cred.delete', id=c.id) }}?next={{ request.full_path|urlencode }}" data-confirm="Delete this credential?" class="inline">{{ csrf() }}<button class="btn sm danger">Delete</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" class="empty">No credentials stored yet.</td></tr>{% endfor %}</table>
 {% endmacro %}
+{% macro statuscard(s, checking=false, extra='') %}
+<div class="status {{ s.status }}"><span class="dot {{ s.status }}"></span>
+<div><b>{{ 'Checking now...' if checking else {'online':'Online','offline':'Offline'}.get(s.status,'Not checked yet') }}</b>
+<span class="sub">{% if s.checked_at %}Last check {{ s.checked_at|localtime('%Y-%m-%d %H:%M:%S') }}{% else %}No check has run for this item{% endif %}{{ extra }}</span></div></div>
+{% endmacro %}

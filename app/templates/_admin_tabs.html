@@ -1,0 +1,3 @@
+<div class="tabs"><a href="{{ url_for('admin.users') }}" class="{{ 'on' if request.endpoint in ('admin.users','admin.user_form') }}">Users</a>
+<a href="{{ url_for('admin.groups') }}" class="{{ 'on' if request.endpoint in ('admin.groups','admin.group_form') }}">Groups</a>
+<a href="{{ url_for('admin.transfer_page') }}" class="{{ 'on' if request.endpoint in ('admin.transfer_page','admin.import_') }}">Export &amp; import</a></div>

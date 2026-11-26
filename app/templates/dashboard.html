@@ -2,10 +2,13 @@
 {% block title %}Dashboard{% endblock %}
 {% block content %}
 <h1>Dashboard</h1>
-<p class="summary">
-{% if mon.last_run %}Last check {{ mon.last_run|localtime }}: <b>{{ mon.online }}</b> online, <b>{{ mon.offline }}</b> offline.{% else %}No availability check has run yet.{% endif %}
-{% if mon.next_run %} Next check {{ mon.next_run|localtime }}.{% elif not mon.enabled %} Scheduled checks are off.{% endif %}
-<a href="{{ url_for('mon.monitoring') }}">Monitoring</a></p>
+<div class="stats">
+{% for label, c in (('Devices', counts.devices), ('Services', counts.services)) %}
+<div class="stat"><div class="l">{{ label }}</div><div class="n">{{ c.total }}</div>
+<div class="d"><span class="dot online"></span> {{ c.online }} online &nbsp; <span class="dot offline"></span> {{ c.offline }} offline &nbsp; <span class="dot"></span> {{ c.unknown }} unchecked</div></div>{% endfor %}
+<div class="stat"><div class="l">Last scheduled check</div><div class="n" style="font-size:1.2rem">{{ mon.last_run|localtime }}</div><div class="d sub">{% if mon.last_run %}{{ mon.failed }} failed check(s){% else %}Not run yet{% endif %}</div></div>
+<div class="stat"><div class="l">Next scheduled check</div><div class="n" style="font-size:1.2rem">{{ mon.next_run|localtime if mon.next_run else 'Off' }}</div><div class="d"><a href="{{ url_for('mon.monitoring') }}">Monitoring</a></div></div>
+</div>
 
 <div class="bar"><h2>Services</h2>{% if can('add') %}<a class="btn" href="{{ url_for('inv.service_form') }}">Add service</a>{% endif %}</div>
 <div class="tiles">

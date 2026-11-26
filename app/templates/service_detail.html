@@ -1,18 +1,22 @@
-{% extends "base.html" %}{% from "_m.html" import dot, statustext, cred_table, csrf with context %}
+{% extends "base.html" %}{% from "_m.html" import dot, statuscard, cred_table, csrf with context %}
 {% block title %}{{ s.name }}{% endblock %}
+{% block head %}{% if checking %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
 {% block content %}
 <div class="bar"><h1>{{ s.name }}</h1><span>
 {% if s.open_url %}<a class="btn primary" href="{{ s.open_url }}" target="_blank" rel="noopener">Open</a>{% endif %}
 {% if s.management_type == 'external' and s.manage_url %}<a class="btn" href="{{ s.manage_url }}" target="_blank" rel="noopener">Open management{% if s.management_service %} ({{ s.management_service.name }}){% endif %}</a>{% endif %}
+{% if can('run_checks') %}<form method="post" action="{{ url_for('inv.check_now', kind='services', id=s.id) }}" class="inline">{{ csrf() }}<button class="btn" {{ 'disabled' if checking }}>{{ 'Checking...' if checking else 'Check now' }}</button></form>{% endif %}
 {% if can('edit') %}<a class="btn" href="{{ url_for('inv.service_form', id=s.id) }}">Edit</a>{% endif %}
 {% if can('delete') %}<form method="post" action="{{ url_for('inv.service_delete', id=s.id) }}" class="inline" data-confirm="Delete this service? Linked credentials are kept but unlinked.">{{ csrf() }}<button class="btn danger">Delete</button></form>{% endif %}</span></div>
+{{ statuscard(st, checking, ' &middot; ' ~ (st.response_time|ms) if st.response_time is not none else '') }}
+<div class="split">
+<div>
 <dl class="kv">
-<dt>Status</dt><dd>{{ statustext(st) }}{% if st.checked_at %} <span class="sub">checked {{ st.checked_at|localtime }}</span>{% endif %}</dd>
 <dt>Last successful check</dt><dd>{{ st.last_success|localtime }}</dd><dt>Failed checks</dt><dd>{{ st.fails }}</dd>
-<dt>TCP response</dt><dd>{{ st.response_time|ms }}</dd>
-{% if st.http %}<dt>HTTP</dt><dd>{{ dot(st.http.status) }} {{ st.http.http_status_code or '-' }} <span class="sub">{{ st.http.error_message or '' }}</span></dd>{% endif %}
+{% if st.http %}<dt>HTTP result</dt><dd>{{ dot(st.http.status) }} {{ st.http.http_status_code or '-' }} <span class="sub">{{ st.http.error_message or '' }}</span></dd>{% endif %}
+<dt>Check method</dt><dd>{{ {'tcp':'TCP connection','tcp_http':'TCP connection + HTTP request','http':'HTTP request only','ping':'ICMP ping'}[s.check_method] }}{% if not s.mon_enabled %} (monitoring off){% endif %}</dd>
 <dt>Description</dt><dd>{{ s.description or '-' }}</dd>
-<dt>Device</dt><dd>{% if s.device %}<a href="{{ url_for('inv.device_detail', id=s.device.id) }}">{{ s.device.name }}</a>{% else %}-{% endif %}</dd>
+<dt>Device</dt><dd>{% if s.device %}<a href="{{ url_for('inv.device_detail', id=s.device.id) }}">{{ s.device.name }}</a>{% else %}Not on a device{% if can('edit') %} - <a href="{{ url_for('inv.service_form', id=s.id) }}">choose one</a>{% endif %}{% endif %}</dd>
 <dt>Address</dt><dd>{{ s.host }}:{{ s.eff_port }} ({{ s.protocol }})</dd>
 <dt>URL</dt><dd>{{ s.open_url or '-' }}</dd>
 <dt>Management</dt><dd>{% if s.management_type == 'direct' %}Direct access
@@ -23,6 +27,9 @@
 {% if can('cred_view') %}<div class="bar"><h2>Credentials</h2>{% if unlocked and can('cred_manage') %}<a class="btn" href="{{ url_for('cred.form', service_id=s.id, next=request.path) }}">Add credential</a>{% endif %}</div>
 {% if unlocked %}{{ cred_table(s.credentials, false) }}
 {% else %}<p class="empty">{{ s.credentials|length }} credential(s) stored. <a href="{{ url_for('cred.unlock', next=request.path) }}">Unlock with PIN</a> to view them.</p>{% endif %}{% endif %}
-{% if can('history') %}<div class="bar"><h2>Recent checks</h2><a href="{{ url_for('mon.history', target_type='service', target_id=s.id) }}">Full history</a></div>
-{% include "_hist_table.html" %}{% endif %}
+</div>
+{% if can('history') %}<div>
+<div class="bar"><h2>Recent checks</h2><a href="{{ url_for('mon.history', target_type='service', target_id=s.id) }}">Full history</a></div>
+{% include "_hist_table.html" %}</div>{% endif %}
+</div>
 {% endblock %}

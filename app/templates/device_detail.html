@@ -1,24 +1,39 @@
-{% extends "base.html" %}{% from "_m.html" import dot, statustext, csrf with context %}
+{% extends "base.html" %}{% from "_m.html" import dot, statuscard, csrf with context %}
 {% block title %}{{ d.name }}{% endblock %}
+{% block head %}{% if checking %}<meta http-equiv="refresh" content="3">{% endif %}{% endblock %}
 {% block content %}
 <div class="bar"><h1>{{ d.name }}</h1><span>
 {% if d.open_url %}<a class="btn primary" href="{{ d.open_url }}" target="_blank" rel="noopener">Open</a>{% endif %}
+{% if can('run_checks') %}<form method="post" action="{{ url_for('inv.check_now', kind='devices', id=d.id) }}" class="inline">{{ csrf() }}<button class="btn" {{ 'disabled' if checking }}>{{ 'Checking...' if checking else 'Check now' }}</button></form>{% endif %}
 {% if can('edit') %}<a class="btn" href="{{ url_for('inv.device_form', id=d.id) }}">Edit</a>{% endif %}
 {% if can('delete') %}<form method="post" action="{{ url_for('inv.device_delete', id=d.id) }}" class="inline" data-confirm="Delete this device and its {{ d.services|length }} service(s)? Their credentials are kept but unlinked.">{{ csrf() }}<button class="btn danger">Delete</button></form>{% endif %}</span></div>
+{{ statuscard(s, checking, ' &middot; ' ~ (s.response_time|ms) if s.response_time is not none else '') }}
+<div class="split">
+<div>
 <dl class="kv">
-<dt>Status</dt><dd>{{ statustext(s) }}{% if s.checked_at %} <span class="sub">checked {{ s.checked_at|localtime }}</span>{% endif %}</dd>
 <dt>Last successful check</dt><dd>{{ s.last_success|localtime }}</dd>
 <dt>Failed checks</dt><dd>{{ s.fails }}</dd>
-<dt>Response time</dt><dd>{{ s.response_time|ms }}</dd>
 <dt>Check method</dt><dd>{{ {'ping':'ICMP ping','tcp':'TCP port ' ~ d.check_port,'http':'HTTP request'}[d.check_method] }}{% if not d.mon_enabled %} (monitoring off){% endif %}</dd>
-<dt>IP address</dt><dd>{{ d.ip_address }}</dd>
-<dt>Web address</dt><dd>{{ d.open_url or '-' }}</dd><dt>Hostname</dt><dd>{{ d.hostname or '-' }}</dd><dt>Type</dt><dd>{{ d.device_type or '-' }}</dd>
+<dt>IP address</dt><dd>{{ d.ip_address }}</dd><dt>Web address</dt><dd>{{ d.open_url or '-' }}</dd>
+<dt>Hostname</dt><dd>{{ d.hostname or '-' }}</dd><dt>Type</dt><dd>{{ d.device_type or '-' }}</dd>
 <dt>Description</dt><dd>{{ d.description or '-' }}</dd><dt>Notes</dt><dd class="pre">{{ d.notes or '-' }}</dd>
 <dt>Added</dt><dd>{{ d.created_at|localtime }}</dd></dl>
-<div class="bar"><h2>Services on this device</h2>{% if can('add') %}<a class="btn" href="{{ url_for('inv.service_form', device_id=d.id) }}">Add service</a>{% endif %}</div>
+
+<div class="bar"><h2>Services on this device</h2>{% if can('add') %}<a class="btn" href="{{ url_for('inv.service_form', device_id=d.id) }}">Add new service</a>{% endif %}</div>
 <table class="grid">{% for s2 in d.services %}<tr><td>{{ dot(sst[s2.id].status) }}</td><td><a href="{{ url_for('inv.service_detail', id=s2.id) }}">{{ s2.name }}</a></td><td>{{ s2.eff_port }}</td>
-<td>{% if s2.open_url %}<a class="btn sm" href="{{ s2.open_url }}" target="_blank" rel="noopener">Open</a>{% endif %}</td></tr>
-{% else %}<tr><td class="empty">No services yet.</td></tr>{% endfor %}</table>
-{% if can('history') %}<div class="bar"><h2>Recent checks</h2><a href="{{ url_for('mon.history', target_type='device', target_id=d.id) }}">Full history</a></div>
-{% include "_hist_table.html" %}{% endif %}
+<td class="act">{% if s2.open_url %}<a class="btn sm" href="{{ s2.open_url }}" target="_blank" rel="noopener">Open</a>{% endif %}</td></tr>
+{% else %}<tr><td class="empty">No services on this device yet.</td></tr>{% endfor %}</table>
+{% if can('edit') %}
+<form method="post" action="{{ url_for('inv.device_attach', id=d.id) }}" class="attach">{{ csrf() }}
+<select name="service_id" aria-label="Existing service to attach"><option value="">Attach an existing service...</option>
+{% for sv in movable %}<option value="{{ sv.id }}">{{ sv.name }}{% if sv.ip_address %} - {{ sv.ip_address }}{% endif %} ({{ 'now on ' ~ sv.device.name if sv.device else 'not on a device' }})</option>{% endfor %}</select>
+<button class="btn">Attach</button></form>
+<form method="post" action="{{ url_for('inv.device_link_by_ip', id=d.id) }}" class="attach">{{ csrf() }}
+<button class="btn">Link services that have IP {{ d.ip_address }}</button><span class="sub">Services without a device and with this IP are attached automatically.</span></form>
+{% endif %}
+</div>
+{% if can('history') %}<div>
+<div class="bar"><h2>Recent checks</h2><a href="{{ url_for('mon.history', target_type='device', target_id=d.id) }}">Full history</a></div>
+{% include "_hist_table.html" %}</div>{% endif %}
+</div>
 {% endblock %}

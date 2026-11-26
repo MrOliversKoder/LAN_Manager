@@ -196,25 +196,32 @@ def _pick(value, default):
     return default if value is None else value
 
 
-def _build_specs():
+def _build_specs(only=None):
+    """Specs for all enabled targets, or for one (type, id) when a manual check is requested."""
     g = dict(tcp=S.get_float("tcp_timeout"), http=S.get_float("http_timeout"), http_on=S.get_bool("http_enabled"),
              retries=S.get_int("retries"), delay=S.get_int("retry_delay"))
+    if only:
+        g["http_on"] = True
+    devices = Device.query.filter_by(id=only[1]) if only and only[0] == "device" else \
+        ([] if only else Device.query.filter_by(mon_enabled=True))
+    services = Service.query.filter_by(id=only[1]) if only and only[0] == "service" else \
+        ([] if only else Service.query.filter_by(mon_enabled=True))
     specs = []
-    for d in Device.query.filter_by(mon_enabled=True):
+    for d in devices:
         if d.check_method == "http" and not g["http_on"]:
             continue                                   # HTTP checks switched off globally
         specs.append(dict(type="device", id=d.id, host=d.ip_address, method=d.check_method, port=d.check_port or d.web_port,
                           timeout=_pick(d.timeout, g["tcp"]), http_timeout=_pick(d.timeout, g["http"]),
                           retries=_pick(d.retries, g["retries"]), delay=_pick(d.retry_delay, g["delay"]),
                           url=d.open_url, expected=None))
-    for s in Service.query.filter_by(mon_enabled=True):
-        if s.check_method == "http" and not g["http_on"]:
+    for sv in services:
+        if sv.check_method == "http" and not g["http_on"]:
             continue
-        specs.append(dict(type="service", id=s.id, host=s.host, method="tcp" if s.check_method == "tcp_http" else s.check_method,
-                          port=s.eff_port, timeout=_pick(s.timeout, g["tcp"]), http_timeout=_pick(s.timeout, g["http"]),
-                          retries=_pick(s.retries, g["retries"]), delay=_pick(s.retry_delay, g["delay"]),
-                          http=s.check_method == "tcp_http" and g["http_on"], url=s.base_url,
-                          expected=s.http_expected))
+        specs.append(dict(type="service", id=sv.id, host=sv.host, method="tcp" if sv.check_method == "tcp_http" else sv.check_method,
+                          port=sv.eff_port, timeout=_pick(sv.timeout, g["tcp"]), http_timeout=_pick(sv.timeout, g["http"]),
+                          retries=_pick(sv.retries, g["retries"]), delay=_pick(sv.retry_delay, g["delay"]),
+                          http=sv.check_method == "tcp_http" and g["http_on"], url=sv.base_url,
+                          expected=sv.http_expected))
     return specs
 
 
@@ -250,6 +257,40 @@ def run_all(trigger="scheduled"):
         return False
     finally:
         _run_lock.release()
+
+
+_target_running = set()
+_target_lock = threading.Lock()
+
+
+def target_running(target_type, target_id):
+    return (target_type, target_id) in _target_running or is_running()
+
+
+def _run_target(target_type, target_id):
+    try:
+        with _app.app_context():
+            specs = _build_specs(only=(target_type, target_id))
+            run_id = "m" + uuid.uuid4().hex[:11]
+            rows = [r for sp in specs for r in _execute(sp)]
+            db.session.add_all(H(run_id=run_id, **r) for r in rows)
+            db.session.commit()
+            log.info("Manual check of %s %s finished", target_type, target_id)
+    except Exception:
+        log.exception("Manual check failed")
+    finally:
+        with _target_lock:
+            _target_running.discard((target_type, target_id))
+
+
+def run_target_in_background(target_type, target_id):
+    """Check one device/service now (uses its normal retry settings). Does not touch the overview of the last full run."""
+    with _target_lock:
+        if (target_type, target_id) in _target_running:
+            return False
+        _target_running.add((target_type, target_id))
+    threading.Thread(target=_run_target, args=(target_type, target_id), daemon=True, name="target-check").start()
+    return True
 
 
 def run_in_background(trigger="manual"):

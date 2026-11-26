@@ -1,6 +1,7 @@
 {% extends "base.html" %}{% from "_m.html" import field, select, csrf with context %}
 {% block title %}{{ 'Edit' if u else 'Add' }} user{% endblock %}
 {% block content %}
+{% include "_admin_tabs.html" %}
 <h1>{{ 'Edit ' ~ u.username if u else 'Add user' }}</h1>
 <form method="post" class="form">{{ csrf() }}<div class="cols">
 {% if u %}<label class="f"><span>Username</span><input value="{{ u.username }}" disabled></label>{% else %}{{ field('Username', 'username', data, errors) }}{% endif %}

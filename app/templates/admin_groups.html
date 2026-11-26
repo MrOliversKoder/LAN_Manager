@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% from "_m.html" import csrf with context %}
 {% block title %}Groups{% endblock %}
 {% block content %}
-<div class="bar"><h1>Groups</h1><span><a class="btn" href="{{ url_for('admin.users') }}">Users</a> <a class="btn primary" href="{{ url_for('admin.group_form') }}">Add group</a></span></div>
+{% include "_admin_tabs.html" %}
+<div class="bar"><h1>Groups</h1><span><a class="btn primary" href="{{ url_for('admin.group_form') }}">Add group</a></span></div>
 <table class="grid"><thead><tr><th>Group</th><th>Can do</th><th>Users</th><th></th></tr></thead>
 {% for g in groups %}<tr><td><b>{{ g.name }}</b><br><span class="sub">{{ g.description or '' }}</span></td>
 <td class="sub">{% for p in perms %}{% if p in g.perm_set %}{{ perms[p] }}{{ '; ' if not loop.last }}{% endif %}{% endfor %}</td><td>{{ g.users|length }}</td>

@@ -8,29 +8,38 @@
 <body data-csrf="{{ csrf_token() }}">
 {% from "_m.html" import csrf with context %}
 <aside class="side">
-  <a class="brand" href="{{ url_for('inv.dashboard') }}">LAN Manager</a>
-  {% if can('view') %}<form action="{{ url_for('inv.search') }}" class="srch"><input type="search" name="q" placeholder="Search everything" value="{{ q or '' }}"></form>{% endif %}
+  <a class="brand" href="{{ url_for('inv.dashboard') }}"><span class="logo"></span>LAN Manager</a>
   <nav>
     {% set ep = request.endpoint or '' %}
     {% if can('view') %}<a href="{{ url_for('inv.dashboard') }}" class="{{ 'on' if ep == 'inv.dashboard' }}">Dashboard</a>
-    <a href="{{ url_for('inv.devices') }}" class="{{ 'on' if ep.startswith('inv.device') }}">Devices</a>
-    <a href="{{ url_for('inv.services') }}" class="{{ 'on' if ep.startswith('inv.service') }}">Services</a>{% endif %}
+    <a href="{{ url_for('inv.devices') }}" class="{{ 'on' if ep.startswith('inv.device') or ep == 'inv.check_now' and 'devices' in request.path }}">Devices</a>
+    <a href="{{ url_for('inv.services') }}" class="{{ 'on' if ep.startswith('inv.service') or ep == 'inv.check_now' and 'services' in request.path }}">Services</a>{% endif %}
     {% if can('cred_view') %}<a href="{{ url_for('cred.index') }}" class="{{ 'on' if ep.startswith('cred.') }}">Credentials</a>{% endif %}
     {% if can('view') or can('history') or can('settings') %}<a href="{{ url_for('mon.monitoring') }}" class="{{ 'on' if ep.startswith('mon.mon') or ep == 'mon.run_now' }}">Monitoring</a>{% endif %}
     {% if can('history') %}<a href="{{ url_for('mon.history') }}" class="{{ 'on' if ep == 'mon.history' }}">History</a>{% endif %}
     {% if can('settings') %}<a href="{{ url_for('mon.settings') }}" class="{{ 'on' if ep == 'mon.settings' }}">Settings</a>{% endif %}
     {% if can('admin') %}<a href="{{ url_for('admin.users') }}" class="{{ 'on' if ep.startswith('admin.') }}">Admin</a>{% endif %}
   </nav>
-  <div class="foot">
-    {% if current_user %}<span class="sub"><a href="{{ url_for('auth.account') }}">{{ current_user.username }}</a></span>
-    <form method="post" action="{{ url_for('auth.logout') }}">{{ csrf() }}<button class="btn sm">Log out</button></form>{% endif %}
-    {% if unlocked %}<form method="post" action="{{ url_for('cred.lock') }}">{{ csrf() }}<button class="btn sm">Lock credentials</button></form>{% endif %}
-    <button class="btn sm" id="theme-toggle" type="button">Light / dark</button>
-  </div>
 </aside>
+<div class="wrap">
+<header class="top">
+  {% if can('view') %}<form action="{{ url_for('inv.search') }}" class="srch"><input type="search" name="q" placeholder="Search devices, services, credentials" value="{{ q or '' }}" aria-label="Search"></form>{% endif %}
+  <div class="tools">
+    {% if can('cred_view') %}
+      {% if unlocked %}<form method="post" action="{{ url_for('cred.lock') }}">{{ csrf() }}<button class="chip on" title="Lock the credentials section now"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 7.5-2"/></svg>Credentials unlocked &middot; Lock</button></form>
+      {% else %}<a class="chip" href="{{ url_for('cred.unlock') }}" title="Unlock credentials"><svg viewBox="0 0 24 24"><rect x="4" y="11" width="16" height="10" rx="2"/><path d="M8 11V8a4 4 0 0 1 8 0v3"/></svg>Credentials locked</a>{% endif %}
+    {% endif %}
+    <button class="icon" id="theme-toggle" type="button" title="Switch light / dark" aria-label="Switch light or dark theme">
+      <svg class="i-sun" viewBox="0 0 24 24"><circle cx="12" cy="12" r="4"/><path d="M12 2v2M12 20v2M4.9 4.9l1.4 1.4M17.7 17.7l1.4 1.4M2 12h2M20 12h2M4.9 19.1l1.4-1.4M17.7 6.3l1.4-1.4"/></svg>
+      <svg class="i-moon" viewBox="0 0 24 24"><path d="M21 13a9 9 0 1 1-10-10 7 7 0 0 0 10 10z"/></svg></button>
+    {% if current_user %}<details class="user"><summary><span class="avatar">{{ current_user.username[:1]|upper }}</span><span class="who">{{ current_user.username }}<small>{{ current_user.group.name }}</small></span></summary>
+      <div class="menu"><a href="{{ url_for('auth.account') }}">My account</a>
+      <form method="post" action="{{ url_for('auth.logout') }}">{{ csrf() }}<button>Log out</button></form></div></details>{% endif %}
+  </div>
+</header>
 <main>
 {% for cat, msg in get_flashed_messages(with_categories=true) %}<div class="flash {{ cat }}">{{ msg }}</div>{% endfor %}
 {% block content %}{% endblock %}
-</main>
+</main></div>
 <script src="{{ url_for('static', filename='app.js') }}"></script>
 </body></html>

@@ -40,7 +40,7 @@ def create_app():
     app.config.update(SECRET_KEY=security.session_secret(key), SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True,
                       PERMANENT_SESSION_LIFETIME=timedelta(hours=config.SESSION_HOURS),
                       SQLALCHEMY_DATABASE_URI=f"sqlite:///{config.DB_PATH}",
-                      SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"timeout": 30}}, MAX_CONTENT_LENGTH=1 << 20)
+                      SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"timeout": 30}}, MAX_CONTENT_LENGTH=25 << 20)
     db.init_app(app)
     with app.app_context():
         migrations.migrate()

@@ -38,6 +38,14 @@ def _status_filter(items, st, wanted):
     return [i for i in items if wanted in ("", None) or st[i.id]["status"] == wanted]
 
 
+def link_services_by_ip(device):
+    """Unassigned services whose IP equals the device IP belong to that device."""
+    found = Service.query.filter(Service.device_id.is_(None), Service.ip_address == device.ip_address).all()
+    for sv in found:
+        sv.device_id = device.id
+    return len(found)
+
+
 # ---- dashboard & search ------------------------------------------------------------
 @bp.route("/")
 def dashboard():
@@ -45,8 +53,14 @@ def dashboard():
         return redirect(url_for(auth.landing()))
     devices = Device.query.order_by(Device.name).all()
     services = Service.query.order_by(Service.name).all()
-    return render_template("dashboard.html", devices=devices, services=services, dst=monitor.summaries("device"),
-                           sst=monitor.summaries("service"), mon=monitor.overview())
+    dst, sst = monitor.summaries("device"), monitor.summaries("service")
+    counts = {}
+    for name, items, st in (("devices", devices, dst), ("services", services, sst)):
+        statuses = [st[i.id]["status"] for i in items]
+        counts[name] = dict(total=len(items), online=statuses.count("online"), offline=statuses.count("offline"),
+                            unknown=statuses.count("unknown"))
+    return render_template("dashboard.html", devices=devices, services=services, dst=dst, sst=sst,
+                           mon=monitor.overview(), counts=counts)
 
 
 @bp.route("/search")
@@ -90,8 +104,10 @@ def device_detail(id):
     auth.require("view")
     d = db.get_or_404(Device, id)
     hist = H.query.filter_by(target_type="device", target_id=id).order_by(H.id.desc()).limit(15).all()
-    return render_template("device_detail.html", d=d, s=monitor.summaries("device")[id],
-                           sst=monitor.summaries("service"), hist=hist)
+    movable = Service.query.filter(or_(Service.device_id.is_(None), Service.device_id != id)).order_by(
+        Service.device_id.is_(None).desc(), Service.name).all()
+    return render_template("device_detail.html", d=d, s=monitor.summaries("device")[id], sst=monitor.summaries("service"),
+                           hist=hist, movable=movable, checking=monitor.target_running("device", id))
 
 
 @bp.route("/devices/new", methods=["GET", "POST"])
@@ -121,8 +137,10 @@ def device_form(id=None):
             for k, v in vals.items():
                 setattr(d, k, v)
             db.session.add(d)
+            db.session.flush()
+            linked = link_services_by_ip(d)
             db.session.commit()
-            flash("Device saved", "ok")
+            flash("Device saved" + (f". {linked} existing service(s) with the same IP were linked to it." if linked else ""), "ok")
             return redirect(url_for("inv.device_detail", id=d.id))
     return render_template("device_form.html", d=d, data=_data(d, DEVICE_KEYS), errors=errors, types=DEVICE_TYPES)
 
@@ -162,7 +180,8 @@ def service_detail(id):
     auth.require("view")
     s = db.get_or_404(Service, id)
     hist = H.query.filter_by(target_type="service", target_id=id).order_by(H.id.desc()).limit(15).all()
-    return render_template("service_detail.html", s=s, st=monitor.summaries("service")[id], hist=hist)
+    return render_template("service_detail.html", s=s, st=monitor.summaries("service")[id], hist=hist,
+                           checking=monitor.target_running("service", id))
 
 
 @bp.route("/services/new", methods=["GET", "POST"])
@@ -202,9 +221,14 @@ def service_form(id=None):
             s = s or Service()
             for k, v in vals.items():
                 setattr(s, k, v)
+            note = ""
+            if not s.device_id and s.ip_address:          # same IP as a known device -> it belongs to that device
+                match = Device.query.filter_by(ip_address=s.ip_address).order_by(Device.id).first()
+                if match:
+                    s.device_id, note = match.id, f". Linked to {match.name} (same IP address)."
             db.session.add(s)
             db.session.commit()
-            flash("Service saved", "ok")
+            flash("Service saved" + note, "ok")
             return redirect(url_for("inv.service_detail", id=s.id))
     data = _data(s, SERVICE_KEYS)
     if not s and request.method == "GET":
@@ -251,3 +275,42 @@ def test_check():
         return jsonify(error=" ".join(f.errors.values()) or "Enter an IP address first"), 400
     results, pick = monitor.run_test(kind, host, port, url, timeout)
     return jsonify(results=results, recommended=pick, host=host)
+
+
+# ---- attach services to a device / manual check --------------------------------------
+@bp.route("/devices/<int:id>/attach", methods=["POST"])
+def device_attach(id):
+    auth.require("edit")
+    d = db.get_or_404(Device, id)
+    sv = db.session.get(Service, request.form.get("service_id", type=int) or 0)
+    if not sv:
+        flash("Choose a service to attach", "err")
+    else:
+        sv.device_id = d.id
+        db.session.commit()
+        flash(f"{sv.name} now belongs to {d.name}", "ok")
+    return redirect(url_for("inv.device_detail", id=id))
+
+
+@bp.route("/devices/<int:id>/link-by-ip", methods=["POST"])
+def device_link_by_ip(id):
+    auth.require("edit")
+    d = db.get_or_404(Device, id)
+    n = link_services_by_ip(d)
+    db.session.commit()
+    flash(f"{n} service(s) with IP {d.ip_address} were linked" if n else f"No unassigned service has IP {d.ip_address}", "ok" if n else "err")
+    return redirect(url_for("inv.device_detail", id=id))
+
+
+@bp.route("/<kind>/<int:id>/check", methods=["POST"])
+def check_now(kind, id):
+    auth.require("run_checks")
+    if kind not in ("devices", "services"):
+        abort(404)
+    target = "device" if kind == "devices" else "service"
+    db.get_or_404(Device if target == "device" else Service, id)
+    if monitor.run_target_in_background(target, id):
+        flash("Check started. This page refreshes until it finishes.", "ok")
+    else:
+        flash("A check of this item is already running", "err")
+    return redirect(url_for("inv.device_detail" if target == "device" else "inv.service_detail", id=id))

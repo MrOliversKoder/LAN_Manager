@@ -98,3 +98,21 @@
       }, function () { btn.disabled = false; out.innerHTML = '<p class="err">Test failed. Is the server reachable?</p>'; });
   });
 })();
+
+// Export page: "Select everything"
+(function () {
+  var all = document.getElementById('all-items');
+  if (!all) return;
+  all.addEventListener('change', function () {
+    document.querySelectorAll('input[name=items]').forEach(function (c) { c.checked = all.checked; });
+  });
+})();
+
+// Close the user menu when clicking elsewhere or pressing Escape.
+document.addEventListener('click', function (e) {
+  var d = document.querySelector('details.user[open]');
+  if (d && !d.contains(e.target)) d.removeAttribute('open');
+});
+document.addEventListener('keydown', function (e) {
+  if (e.key === 'Escape') { var d = document.querySelector('details.user[open]'); if (d) d.removeAttribute('open'); }
+});

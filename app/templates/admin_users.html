@@ -1,7 +1,8 @@
 {% extends "base.html" %}{% from "_m.html" import csrf with context %}
 {% block title %}Users{% endblock %}
 {% block content %}
-<div class="bar"><h1>Users</h1><span><a class="btn" href="{{ url_for('admin.groups') }}">Groups</a> <a class="btn primary" href="{{ url_for('admin.user_form') }}">Add user</a></span></div>
+{% include "_admin_tabs.html" %}
+<div class="bar"><h1>Users</h1><span><a class="btn primary" href="{{ url_for('admin.user_form') }}">Add user</a></span></div>
 <table class="grid"><thead><tr><th>Username</th><th>Group</th><th>Status</th><th>Last login</th><th></th></tr></thead>
 {% for u in users %}<tr><td>{{ u.username }}{% if u.id == current_user.id %} <span class="sub">(you)</span>{% endif %}</td><td>{{ u.group.name }}</td>
 <td>{{ 'Active' if u.is_active else 'Disabled' }}</td><td>{{ u.last_login|localtime }}</td>

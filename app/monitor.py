@@ -25,11 +25,11 @@ from apscheduler.triggers.cron import CronTrigger
 from sqlalchemy import func
 
 from . import config, settings as S
-from .models import db, Device, Service, MonitorHistory as H, utcnow
+from .models import db, Device, Service, MonitorHistory as H, build_url, utcnow
 
 log = logging.getLogger(__name__)
 DAYS = ["mon", "tue", "wed", "thu", "fri", "sat", "sun"]
-PRIMARY = ("ping", "tcp")           # these decide online/offline; http is recorded separately
+PRIMARY = ("ping", "tcp", "web")    # these decide online/offline ("web" = HTTP-only target); "http" is the extra check on top of TCP
 UNKNOWN = {"status": "unknown", "checked_at": None, "response_time": None, "last_success": None,
            "fails": 0, "http": None}
 
@@ -171,8 +171,14 @@ def _execute(sp):
     if not host:
         row("tcp", 1, True, False, None, None, "No IP address configured", None)
         return rows
-    if sp["method"] == "ping":
+    method = sp["method"]
+    if method == "ping":
         up = check("ping", lambda: ping_check(host, sp["timeout"]), None)
+    elif method == "http":
+        if not sp.get("url"):
+            row("web", 1, True, False, None, None, "No web address configured", None)
+            return rows
+        up = check("web", lambda: http_check(sp["url"], sp["http_timeout"], sp["expected"]), sp["port"])
     elif not sp["port"]:
         row("tcp", 1, True, False, None, None, "No port configured", None)
         return rows
@@ -195,12 +201,17 @@ def _build_specs():
              retries=S.get_int("retries"), delay=S.get_int("retry_delay"))
     specs = []
     for d in Device.query.filter_by(mon_enabled=True):
-        specs.append(dict(type="device", id=d.id, host=d.ip_address, method=d.check_method, port=d.check_port,
-                          timeout=_pick(d.timeout, g["tcp"]), retries=_pick(d.retries, g["retries"]),
-                          delay=_pick(d.retry_delay, g["delay"])))
+        if d.check_method == "http" and not g["http_on"]:
+            continue                                   # HTTP checks switched off globally
+        specs.append(dict(type="device", id=d.id, host=d.ip_address, method=d.check_method, port=d.check_port or d.web_port,
+                          timeout=_pick(d.timeout, g["tcp"]), http_timeout=_pick(d.timeout, g["http"]),
+                          retries=_pick(d.retries, g["retries"]), delay=_pick(d.retry_delay, g["delay"]),
+                          url=d.open_url, expected=None))
     for s in Service.query.filter_by(mon_enabled=True):
-        specs.append(dict(type="service", id=s.id, host=s.host, method="tcp", port=s.eff_port,
-                          timeout=_pick(s.timeout, g["tcp"]), http_timeout=_pick(s.timeout, g["http"]),
+        if s.check_method == "http" and not g["http_on"]:
+            continue
+        specs.append(dict(type="service", id=s.id, host=s.host, method="tcp" if s.check_method == "tcp_http" else s.check_method,
+                          port=s.eff_port, timeout=_pick(s.timeout, g["tcp"]), http_timeout=_pick(s.timeout, g["http"]),
                           retries=_pick(s.retries, g["retries"]), delay=_pick(s.retry_delay, g["delay"]),
                           http=s.check_method == "tcp_http" and g["http_on"], url=s.base_url,
                           expected=s.http_expected))
@@ -366,3 +377,40 @@ def overview():
 def purge_history(target_type, ids):
     if ids:
         H.query.filter(H.target_type == target_type, H.target_id.in_(ids)).delete(synchronize_session=False)
+
+
+# ---- "Test connection" from the forms ---------------------------------------------------
+COMMON_PORTS = (22, 80, 443, 445, 3389, 5000, 5001, 8006, 8080, 8123, 9000)
+
+
+def run_test(kind, host, port, url, timeout):
+    """Try every available method against the values typed into the form (nothing is saved).
+    Returns (results, recommended_check_method). Each result: key, label, ok, ms, code, error, apply."""
+    results = []
+
+    def add(key, label, res, apply):
+        ok, ms, code, err = res
+        results.append(dict(key=key, label=label, ok=ok, ms=ms, code=code, error=err, apply=apply))
+
+    with ThreadPoolExecutor(max_workers=4) as pool:
+        ping_f = pool.submit(ping_check, host, timeout)
+        tcp_f = pool.submit(tcp_check, host, port, timeout) if port else None
+        http_f = pool.submit(http_check, url, max(timeout, 3), None) if url else None
+        scan = {} if (port or kind != "device") else {p: pool.submit(tcp_check, host, p, min(timeout, 1.5)) for p in COMMON_PORTS}
+        add("ping", "ICMP ping", ping_f.result(), {"check_method": "ping"})
+        if tcp_f:
+            add("tcp", f"TCP connect to port {port}", tcp_f.result(), {"check_method": "tcp", "check_port": port})
+        if http_f:
+            add("http", "HTTP request", http_f.result(),
+                {"check_method": "http" if kind == "device" else "tcp_http"})
+        for p, fut in scan.items():
+            res = fut.result()
+            if res[0]:
+                add("tcp", f"TCP port {p} is open", res, {"check_method": "tcp", "check_port": p})
+    ok = {r["key"] for r in results if r["ok"]}
+    if kind == "device":
+        pick = "ping" if "ping" in ok else "tcp" if "tcp" in ok else "http" if "http" in ok else None
+    else:
+        pick = ("tcp_http" if {"tcp", "http"} <= ok else "tcp" if "tcp" in ok else "http" if "http" in ok
+                else "ping" if "ping" in ok else None)
+    return results, pick

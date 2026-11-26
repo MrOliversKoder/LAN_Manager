@@ -1,4 +1,4 @@
-{% extends "base.html" %}{% from "_m.html" import field, area, csrf with context %}
+{% extends "base.html" %}{% from "_m.html" import field, area, select, csrf with context %}
 {% block title %}{{ 'Edit' if d else 'Add' }} device{% endblock %}
 {% block content %}
 <h1>{{ 'Edit ' ~ d.name if d else 'Add device' }}</h1>
@@ -7,6 +7,10 @@
 {{ field('Name', 'name', data, errors) }}{{ field('IP address', 'ip_address', data, errors) }}
 {{ field('Hostname', 'hostname', data, errors) }}{{ field('Type', 'device_type', data, errors, list='types') }}
 {{ field('Description', 'description', data, errors) }}</div>
+<fieldset><legend>Web interface (optional, adds an Open button)</legend><div class="cols">
+{{ select('Protocol', 'web_protocol', data, errors, [('http','HTTP'),('https','HTTPS')], blank='No web interface') }}
+{{ field('Port', 'web_port', data, errors, hint='Blank = 80 / 443') }}{{ field('Path', 'web_path', data, errors, hint='Optional, e.g. /admin') }}
+{{ field('Custom URL', 'web_url', data, errors, hint='Overrides the generated address') }}</div></fieldset>
 <datalist id="types">{% for t in types %}<option value="{{ t }}">{% endfor %}</datalist>
 {{ area('Notes', 'notes', data, errors) }}
 {% set kind = 'device' %}{% include "_monitoring_fields.html" %}

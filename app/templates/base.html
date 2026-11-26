@@ -9,18 +9,21 @@
 {% from "_m.html" import csrf with context %}
 <aside class="side">
   <a class="brand" href="{{ url_for('inv.dashboard') }}">LAN Manager</a>
-  <form action="{{ url_for('inv.search') }}" class="srch"><input type="search" name="q" placeholder="Search everything" value="{{ q or '' }}"></form>
+  {% if can('view') %}<form action="{{ url_for('inv.search') }}" class="srch"><input type="search" name="q" placeholder="Search everything" value="{{ q or '' }}"></form>{% endif %}
   <nav>
     {% set ep = request.endpoint or '' %}
-    <a href="{{ url_for('inv.dashboard') }}" class="{{ 'on' if ep == 'inv.dashboard' }}">Dashboard</a>
+    {% if can('view') %}<a href="{{ url_for('inv.dashboard') }}" class="{{ 'on' if ep == 'inv.dashboard' }}">Dashboard</a>
     <a href="{{ url_for('inv.devices') }}" class="{{ 'on' if ep.startswith('inv.device') }}">Devices</a>
-    <a href="{{ url_for('inv.services') }}" class="{{ 'on' if ep.startswith('inv.service') }}">Services</a>
-    <a href="{{ url_for('cred.index') }}" class="{{ 'on' if ep.startswith('cred.') }}">Credentials</a>
-    <a href="{{ url_for('mon.monitoring') }}" class="{{ 'on' if ep.startswith('mon.mon') or ep == 'mon.run_now' }}">Monitoring</a>
-    <a href="{{ url_for('mon.history') }}" class="{{ 'on' if ep == 'mon.history' }}">History</a>
-    <a href="{{ url_for('mon.settings') }}" class="{{ 'on' if ep == 'mon.settings' }}">Settings</a>
+    <a href="{{ url_for('inv.services') }}" class="{{ 'on' if ep.startswith('inv.service') }}">Services</a>{% endif %}
+    {% if can('cred_view') %}<a href="{{ url_for('cred.index') }}" class="{{ 'on' if ep.startswith('cred.') }}">Credentials</a>{% endif %}
+    {% if can('view') or can('history') or can('settings') %}<a href="{{ url_for('mon.monitoring') }}" class="{{ 'on' if ep.startswith('mon.mon') or ep == 'mon.run_now' }}">Monitoring</a>{% endif %}
+    {% if can('history') %}<a href="{{ url_for('mon.history') }}" class="{{ 'on' if ep == 'mon.history' }}">History</a>{% endif %}
+    {% if can('settings') %}<a href="{{ url_for('mon.settings') }}" class="{{ 'on' if ep == 'mon.settings' }}">Settings</a>{% endif %}
+    {% if can('admin') %}<a href="{{ url_for('admin.users') }}" class="{{ 'on' if ep.startswith('admin.') }}">Admin</a>{% endif %}
   </nav>
   <div class="foot">
+    {% if current_user %}<span class="sub"><a href="{{ url_for('auth.account') }}">{{ current_user.username }}</a></span>
+    <form method="post" action="{{ url_for('auth.logout') }}">{{ csrf() }}<button class="btn sm">Log out</button></form>{% endif %}
     {% if unlocked %}<form method="post" action="{{ url_for('cred.lock') }}">{{ csrf() }}<button class="btn sm">Lock credentials</button></form>{% endif %}
     <button class="btn sm" id="theme-toggle" type="button">Light / dark</button>
   </div>

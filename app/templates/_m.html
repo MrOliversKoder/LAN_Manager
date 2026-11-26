@@ -22,7 +22,7 @@
 {% if show_service %}<td>{% if c.service %}<a href="{{ url_for('inv.service_detail', id=c.service.id) }}">{{ c.service.name }}</a>{% else %}-{% endif %}</td>{% endif %}
 <td>{{ c.username or '-' }} {% if c.username %}<button type="button" class="btn sm" data-act="copy-user">Copy</button>{% endif %}</td>
 <td>{% if c.encrypted_password %}<span class="pw">••••••••</span> <button type="button" class="btn sm" data-act="toggle">Show</button> <button type="button" class="btn sm" data-act="copy-pass">Copy</button>{% else %}-{% endif %}</td>
-<td class="act"><a class="btn sm" href="{{ url_for('cred.form', id=c.id, next=request.full_path) }}">Edit</a>
-<form method="post" action="{{ url_for('cred.delete', id=c.id) }}?next={{ request.full_path|urlencode }}" data-confirm="Delete this credential?" class="inline">{{ csrf() }}<button class="btn sm danger">Delete</button></form></td></tr>
+<td class="act">{% if can('cred_manage') %}<a class="btn sm" href="{{ url_for('cred.form', id=c.id, next=request.full_path) }}">Edit</a>
+<form method="post" action="{{ url_for('cred.delete', id=c.id) }}?next={{ request.full_path|urlencode }}" data-confirm="Delete this credential?" class="inline">{{ csrf() }}<button class="btn sm danger">Delete</button></form>{% endif %}</td></tr>
 {% else %}<tr><td colspan="5" class="empty">No credentials stored yet.</td></tr>{% endfor %}</table>
 {% endmacro %}

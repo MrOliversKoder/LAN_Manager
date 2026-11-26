@@ -2,11 +2,13 @@ import logging
 import sqlite3
 from datetime import timezone
 
-from flask import Flask, request
+from datetime import timedelta
+
+from flask import Flask, render_template, request
 from sqlalchemy import event
 from sqlalchemy.engine import Engine
 
-from . import config, migrations, monitor, security
+from . import auth, config, migrations, monitor, security
 from .models import db
 
 log = logging.getLogger("lan")
@@ -35,16 +37,28 @@ def create_app():
     key = security.load_key()
 
     app = Flask(__name__)
-    app.config.update(SECRET_KEY=security.session_secret(key), SESSION_COOKIE_SAMESITE="Lax",
+    app.config.update(SECRET_KEY=security.session_secret(key), SESSION_COOKIE_SAMESITE="Lax", SESSION_COOKIE_HTTPONLY=True,
+                      PERMANENT_SESSION_LIFETIME=timedelta(hours=config.SESSION_HOURS),
                       SQLALCHEMY_DATABASE_URI=f"sqlite:///{config.DB_PATH}",
                       SQLALCHEMY_ENGINE_OPTIONS={"connect_args": {"timeout": 30}}, MAX_CONTENT_LENGTH=1 << 20)
     db.init_app(app)
     with app.app_context():
         migrations.migrate()
+        auth.seed()
 
     @app.before_request
     def _csrf():
         security.check_csrf()
+
+    @app.before_request
+    def _login_gate():
+        return auth.gate()
+
+    app.jinja_env.globals["can"] = auth.can
+
+    @app.errorhandler(403)
+    def _forbidden(_e):
+        return render_template("403.html"), 403
 
     @app.after_request
     def _no_store(resp):
@@ -54,7 +68,7 @@ def create_app():
 
     @app.context_processor
     def _ctx():
-        return dict(csrf_token=security.csrf_token, unlocked=security.is_unlocked(),
+        return dict(csrf_token=security.csrf_token, current_user=auth.current_user(), unlocked=security.is_unlocked(),
                     pin_set=security.pin_is_set(), mon_running=monitor.is_running())
 
     @app.template_filter("localtime")
@@ -71,10 +85,12 @@ def create_app():
 
     app.jinja_env.filters["zip"] = lambda a, b: zip(a, b)
 
+    from .views_admin import bp as admin
+    from .views_auth import bp as auth_views
     from .views_inventory import bp as inventory
     from .views_credentials import bp as credentials
     from .views_monitoring import bp as monitoring
-    for bp in (inventory, credentials, monitoring):
+    for bp in (auth_views, admin, inventory, credentials, monitoring):
         app.register_blueprint(bp)
 
     monitor.init_scheduler(app)

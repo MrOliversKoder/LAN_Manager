@@ -1,23 +1,16 @@
-# Uses the image's own mechanism: it clones GIT_REPOSITORY, pip-installs requirements.txt, runs `python .`
+# Everything lives inside the one container: no host folders are mapped.
 services:
   lan-manager:
-    image: davidlor/python-git-app        # consider pinning a tag, e.g. :3.12
+    image: davidlor/python-git-app
     container_name: lan-manager
     restart: unless-stopped
     environment:
-      GIT_REPOSITORY: "https://github.com/YOU/lan-manager.git"   # <- your repository
-      # GIT_BRANCH: main
-      LAN_DATA_DIR: /home/user/data
-      LAN_ENCRYPTION_KEY: "${LAN_ENCRYPTION_KEY}"                # see .env.example
+      GIT_REPOSITORY: "https://github.com/YOU/lan-manager.git"
       TZ: "Europe/Oslo"
+      # Optional: create the first admin from the environment instead of the /setup page
+      # LAN_ADMIN_USER: "admin"
+      # LAN_ADMIN_PASSWORD: "change-me-please"
     ports:
       - "8080:8080"
     cap_add:
-      - NET_RAW                           # allows ICMP ping as a non-root user
-    volumes:
-      - ./data:/home/user/data            # SQLite database (bind mount: easy to back up)
-      - lan-local:/home/user/.local       # pip packages survive container re-creation
-      - lan-cache:/home/user/.cache
-volumes:
-  lan-local:
-  lan-cache:
+      - NET_RAW      # lets the container user send ICMP ping

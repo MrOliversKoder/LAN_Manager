@@ -2,7 +2,7 @@ from zoneinfo import ZoneInfo, available_timezones
 
 from flask import Blueprint, flash, redirect, render_template, request, url_for
 
-from . import monitor, security, settings as S, validators as V
+from . import auth, monitor, security, settings as S, validators as V
 from .models import db, Device, MonitorHistory as H, Service
 
 bp = Blueprint("mon", __name__)
@@ -17,6 +17,9 @@ def _schedule_data():
 
 @bp.route("/monitoring", methods=["GET", "POST"])
 def monitoring():
+    auth.require("view", "history", "settings", "run_checks")
+    if request.method == "POST":
+        auth.require("settings")
     data, errors = _schedule_data(), {}
     if request.method == "POST":
         f = V.Form(request.form)
@@ -54,6 +57,7 @@ def monitoring():
 
 @bp.route("/monitoring/run", methods=["POST"])
 def run_now():
+    auth.require("run_checks")
     if monitor.run_in_background("manual"):
         flash("Checks started. This page refreshes while they run.", "ok")
     else:
@@ -63,6 +67,7 @@ def run_now():
 
 @bp.route("/history")
 def history():
+    auth.require("history")
     a = request.args
     q = H.query
     if a.get("target_type") in ("device", "service"):
@@ -71,7 +76,7 @@ def history():
         q = q.filter(H.target_id == a.get("target_id", type=int))
     if a.get("status") in ("online", "offline"):
         q = q.filter(H.status == a["status"])
-    if a.get("check") in ("ping", "tcp", "http"):
+    if a.get("check") in ("ping", "tcp", "http", "web"):
         q = q.filter(H.check_type == a["check"])
     if a.get("final") == "1":
         q = q.filter(H.is_final.is_(True))
@@ -83,6 +88,7 @@ def history():
 
 @bp.route("/settings", methods=["GET", "POST"])
 def settings():
+    auth.require("settings")
     if request.method == "POST":
         f = V.Form(request.form)
         lock = f.get("cred_lock_minutes", V.number, int, 0, 1440, "Lock timeout")
@@ -99,6 +105,7 @@ def settings():
 
 @bp.route("/settings/pin", methods=["POST"])
 def change_pin():
+    auth.require("settings")
     new, confirm = request.form.get("new", ""), request.form.get("confirm", "")
     if security.pin_is_set():
         ok, msg = security.verify_pin(request.form.get("current", ""))

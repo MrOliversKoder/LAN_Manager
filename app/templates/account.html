@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% from "_m.html" import csrf with context %}
+{% block title %}My account{% endblock %}
+{% block content %}
+<h1>My account</h1>
+<p class="sub">Signed in as <b>{{ current_user.username }}</b> &middot; group: {{ current_user.group.name }}</p>
+<form method="post" class="form narrow">{{ csrf() }}<fieldset><legend>Change password</legend>
+<label class="f"><span>Current password</span><input type="password" name="current" autocomplete="current-password"></label>
+<label class="f"><span>New password</span><input type="password" name="new" autocomplete="new-password"></label>
+<label class="f"><span>Repeat new password</span><input type="password" name="confirm" autocomplete="new-password"></label></fieldset>
+<button class="btn primary">Change password</button></form>{% endblock %}

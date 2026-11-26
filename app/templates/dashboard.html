@@ -7,7 +7,7 @@
 {% if mon.next_run %} Next check {{ mon.next_run|localtime }}.{% elif not mon.enabled %} Scheduled checks are off.{% endif %}
 <a href="{{ url_for('mon.monitoring') }}">Monitoring</a></p>
 
-<div class="bar"><h2>Services</h2><a class="btn" href="{{ url_for('inv.service_form') }}">Add service</a></div>
+<div class="bar"><h2>Services</h2>{% if can('add') %}<a class="btn" href="{{ url_for('inv.service_form') }}">Add service</a>{% endif %}</div>
 <div class="tiles">
 {% for s in services %}{% set st = sst[s.id] %}
 <div class="tile {{ st.status }}">
@@ -18,9 +18,14 @@
 {% else %}<p class="empty">No services yet. Add a device first, then add the services running on it.</p>{% endfor %}
 </div>
 
-<div class="bar"><h2>Devices</h2><a class="btn" href="{{ url_for('inv.device_form') }}">Add device</a></div>
-<table class="grid"><thead><tr><th></th><th>Name</th><th>IP</th><th>Type</th><th>Services</th></tr></thead>
-{% for d in devices %}<tr><td>{{ dot(dst[d.id].status) }}</td><td><a href="{{ url_for('inv.device_detail', id=d.id) }}">{{ d.name }}</a></td>
-<td>{{ d.ip_address }}</td><td>{{ d.device_type or '-' }}</td><td>{{ d.services|length }}</td></tr>
-{% else %}<tr><td colspan="5" class="empty">No devices yet.</td></tr>{% endfor %}</table>
+<div class="bar"><h2>Devices</h2>{% if can('add') %}<a class="btn" href="{{ url_for('inv.device_form') }}">Add device</a>{% endif %}</div>
+<div class="tiles">
+{% for d in devices %}{% set st = dst[d.id] %}
+<div class="tile {{ st.status }}">
+  {% if d.open_url %}<a class="open" href="{{ d.open_url }}" target="_blank" rel="noopener">{{ d.name }}</a>{% else %}<a class="open" href="{{ url_for('inv.device_detail', id=d.id) }}">{{ d.name }}</a>{% endif %}
+  <span class="sub">{{ d.device_type or 'Device' }} &middot; {{ d.ip_address }} &middot; {{ d.services|length }} service(s)</span>
+  <span class="row">{{ dot(st.status) }}<a href="{{ url_for('inv.device_detail', id=d.id) }}" class="sub">Details</a></span>
+</div>
+{% else %}<p class="empty">No devices yet.</p>{% endfor %}
+</div>
 {% endblock %}

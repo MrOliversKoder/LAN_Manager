@@ -1,7 +1,7 @@
 {% extends "base.html" %}{% from "_m.html" import dot %}
 {% block title %}Services{% endblock %}
 {% block content %}
-<div class="bar"><h1>Services</h1><a class="btn" href="{{ url_for('inv.service_form') }}">Add service</a></div>
+<div class="bar"><h1>Services</h1>{% if can('add') %}<a class="btn" href="{{ url_for('inv.service_form') }}">Add service</a>{% endif %}</div>
 <form class="filters" method="get"><input type="search" name="q" value="{{ q }}" placeholder="Name, IP or description">
 <select name="device" onchange="this.form.submit()"><option value="">All devices</option>{% for d in devices %}<option value="{{ d.id }}" {{ 'selected' if dev==d.id }}>{{ d.name }}</option>{% endfor %}</select>
 <select name="mtype" onchange="this.form.submit()"><option value="">Any management</option>

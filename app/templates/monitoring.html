@@ -3,14 +3,14 @@
 {% block head %}{% if mon.running %}<meta http-equiv="refresh" content="5">{% endif %}{% endblock %}
 {% block content %}
 <div class="bar"><h1>Monitoring</h1>
-<form method="post" action="{{ url_for('mon.run_now') }}">{{ csrf() }}<button class="btn primary" {{ 'disabled' if mon.running }}>{{ 'Running...' if mon.running else 'Run all checks now' }}</button></form></div>
+{% if can('run_checks') %}<form method="post" action="{{ url_for('mon.run_now') }}">{{ csrf() }}<button class="btn primary" {{ 'disabled' if mon.running }}>{{ 'Running...' if mon.running else 'Run all checks now' }}</button></form>{% endif %}</div>
 <dl class="kv">
 <dt>Run in progress</dt><dd>{{ 'Yes' if mon.running else 'No' }}</dd>
 <dt>Last run</dt><dd>{{ mon.last_run|localtime('%Y-%m-%d %H:%M:%S') }}{% if mon.trigger %} <span class="sub">({{ mon.trigger }})</span>{% endif %}</dd>
 <dt>Next scheduled run</dt><dd>{{ mon.next_run|localtime if mon.next_run else ('Not scheduled' ) }}</dd>
 <dt>Targets checked</dt><dd>{{ mon.total }}</dd><dt>Online / offline</dt><dd>{{ mon.online }} / {{ mon.offline }}</dd>
 <dt>Failed checks</dt><dd>{{ mon.failed }}</dd></dl>
-<form method="post" class="form">{{ csrf() }}
+{% if can('settings') %}<form method="post" class="form">{{ csrf() }}
 <fieldset><legend>Schedule</legend>
 <label class="check"><input type="checkbox" name="monitoring_enabled" {{ 'checked' if data.monitoring_enabled in (True,'1') }}> Run scheduled checks</label>
 <div class="cols">
@@ -25,5 +25,5 @@
 {{ field('Retries', 'retries', data, errors) }}{{ field('Retry delay (s)', 'retry_delay', data, errors) }}</div>
 <label class="check"><input type="checkbox" name="http_enabled" {{ 'checked' if data.http_enabled in (True,'1') }}> Allow HTTP checks (per-service opt-in)</label></fieldset>
 <button class="btn primary">Save monitoring settings</button>
-<p class="sub">Per-device and per-service overrides (method, timeout, retries, delay) are on each item's edit page.</p></form>
+<p class="sub">Per-device and per-service overrides (method, timeout, retries, delay) are on each item's edit page.</p></form>{% endif %}
 {% endblock %}

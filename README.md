@@ -1,88 +1,77 @@
 # LAN Manager
 
-A small self-hosted inventory of the devices and services on your LAN, with a PIN-protected credentials store and a scheduled availability check.
-Python (Flask) + SQLite + APScheduler. No external services, one container.
+Self-hosted inventory of the devices and services on your LAN, with logins and groups, a PIN-protected credentials store and scheduled availability checks.
+Python (Flask) + SQLite + APScheduler, one container, only the web port exposed.
 
-## How it fits `davidlor/python-git-app`
+## Install (`davidlor/python-git-app`)
+1. Push this folder to a Git repository the container can reach.
+2. Put the repository URL in `docker-compose.yml` (`GIT_REPOSITORY`) and set `TZ`.
+3. `docker compose up -d` and watch `docker compose logs -f` until you see `LAN Manager listening on http://0.0.0.0:8080`.
+4. Open `http://<host>:8080`. The first page asks you to create the **administrator** account (or set `LAN_ADMIN_USER` / `LAN_ADMIN_PASSWORD` to create it at start-up).
 
-From the image's documentation: the container clones `GIT_REPOSITORY` (optionally `GIT_BRANCH`), pip-installs `requirements.txt`,
-then runs the project root with `python .`, so this repo has `__main__.py` and `requirements.txt` at its top level.
-Only `GIT_REPOSITORY` is required by the image; everything else below is this app's own configuration.
+The image clones the repo, installs `requirements.txt` and runs `python .`, so `__main__.py` and `requirements.txt` stay at the repo root.
+All data (SQLite database and the generated encryption key) is stored in `/home/user/App/data` inside the container.
 
-Things I could not verify from here (no Docker Hub access) - please check once:
-1. **Container user and UID** for volume permissions: `docker run --rm --entrypoint id davidlor/python-git-app`
-2. **Whether `ping` exists** in the image you pick: `docker run --rm --entrypoint which davidlor/python-git-app ping`. If not, use TCP checks for devices (the app records a clear error instead of crashing).
-3. **Whether the image re-pulls the repo on restart.** Treat updates as "re-create the container" (see Update).
-
-## Install
-
-1. Push this folder to a Git repository the container can reach (HTTPS, or SSH key as per the image docs).
-2. Generate an encryption key and store it in `.env` next to `docker-compose.yml`:
-   `python3 -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` -> `LAN_ENCRYPTION_KEY=...`
-3. Edit `GIT_REPOSITORY` and `TZ` in `docker-compose.yml`.
-4. `mkdir data` and make it writable by the container user (UID from step 1 above, often 1000): `sudo chown 1000:1000 data`
-5. `docker compose up -d`, then open `http://<host>:8080`. Logs: `docker compose logs -f`.
-
-## Environment variables
-
+## Environment variables (all optional)
 | Variable | Default | Purpose |
 |---|---|---|
 | `GIT_REPOSITORY`, `GIT_BRANCH` | - | Used by the base image |
-| `LAN_DATA_DIR` | `./data` | Folder for the SQLite database (mount a volume here) |
-| `LAN_ENCRYPTION_KEY` | - | Fernet key for stored passwords |
-| `LAN_ENCRYPTION_KEY_FILE` | - | Alternative: path to a file with the key (Docker secret) |
+| `LAN_ADMIN_USER`, `LAN_ADMIN_PASSWORD` | - | Create the first admin if no users exist |
+| `LAN_ENCRYPTION_KEY` / `LAN_ENCRYPTION_KEY_FILE` | auto-generated file in the data folder | Key for stored passwords (Fernet) |
+| `LAN_DATA_DIR` | `<app>/data` | Database folder |
 | `LAN_PORT` / `LAN_HOST` | `8080` / `0.0.0.0` | Listen address |
-| `LAN_LOG_LEVEL` | `INFO` | Logging level |
+| `LAN_SESSION_HOURS` | `12` | Login session length |
 | `LAN_MAX_WORKERS` | `10` | Targets checked in parallel |
-| `TZ` | system | Default timezone for the schedule (overridable in the UI) |
+| `LAN_LOG_LEVEL` | `INFO` | Logging |
+| `TZ` | system | Default schedule timezone |
 
-If no key is supplied, one is generated into `LAN_DATA_DIR/encryption.key` and a warning is logged. That works, but then the key sits beside the database;
-set `LAN_ENCRYPTION_KEY` (or a secret file) for the separation you asked for.
+## Users, groups and permissions
+Everyone logs in. Each user belongs to one group; a group is a set of permissions. Only the **Administrator** group sees the **Admin** page (users and groups).
 
-## Update
+| Permission | Allows |
+|---|---|
+| View | Dashboard, devices, services, search |
+| History | Monitoring history |
+| Add | Create devices and services |
+| Edit | Change devices and services |
+| Delete | Delete devices and services |
+| Run checks | "Run all checks now" |
+| View credentials | Open the credentials section (PIN still needed) |
+| Manage credentials | Add, edit, delete credentials |
+| Settings | Monitoring/app settings, set or change the PIN |
 
-Your data lives in the `./data` volume, so: `docker compose up -d --force-recreate` pulls the latest commit into a fresh container.
-Schema changes are applied automatically on start (see Migrations).
+Groups created on first start (editable or deletable by the admin; you can add your own):
+Operator, Maintainer, Contributor, **Adder only** (can add but not edit or delete), Credentials manager, Credentials viewer, **History viewer** (history only), Read-only.
+Safeguards: you cannot disable, demote or delete your own admin account; a group with users cannot be deleted; changing a user's password signs out their other sessions.
+Forgot the admin password: set `LAN_ADMIN_USER`/`LAN_ADMIN_PASSWORD` on a copy with an empty data folder, or reset it via SQLite by deleting the row in `users` and restarting (the `/setup` page returns when no users exist).
 
-## Using it
+## Test connection and check methods
+On the Add/Edit forms, **Test connection** tries ping, TCP and HTTP with the values currently typed in (nothing is saved), shows what works and offers "Use this".
+For devices with no port entered it also probes common ports (22, 80, 443, 445, 3389, 5000, 5001, 8006, 8080, 8123, 9000).
+Methods: devices - ICMP ping, TCP port, HTTP request; services - TCP, TCP + HTTP, HTTP only, ping. Per-target timeout/retries/delay override the global ones.
+Devices can have an optional web address (protocol/port/path or a custom URL) which gives them an **Open** button on the dashboard and lists.
 
-* **Devices / Services / Credentials** in the sidebar; the dashboard shows service tiles - click a name to open it in a new tab.
-* **Monitoring** page: schedule (one or more times, weekdays, timezone), global timeouts/retries, "Run all checks now", overview.
-  Per-device/service overrides (method, timeout, retries, retry delay, on/off) are on each edit page; blank = global default.
-* **Device checks:** ICMP ping, or TCP port when the device blocks ping. **Service checks:** TCP connect; optionally also an HTTP request with an expected status (kept as a separate result).
-  If the TCP check fails, the HTTP check is skipped and recorded as such. The online/offline dot reflects the ping/TCP result; HTTP shows next to it.
-* **Retries:** the initial attempt plus N retries with the configured delay; every attempt is stored, the last is marked final and decides the status.
-* **History** page lists all attempts with filters; entries older than the retention setting (default 90 days) are pruned after each run.
+## Scheduler
+Runs inside the app, independent of browsers. Fixed job IDs mean restarts cannot duplicate jobs; one catch-up run happens after downtime if a run was missed; only one run at a time.
 
-### Scheduler behaviour
-* Runs inside the app process, independent of any browser. Jobs have fixed IDs and are rebuilt from SQLite on start, so restarts cannot create duplicates.
-* Missed runs: if the app was down at a scheduled time, one catch-up run starts ~15 s after startup (not on a brand-new install).
-* Only one run at a time; a manual click during a run is refused. On `docker stop`, pending retry waits are abandoned and the scheduler shuts down.
+## Security notes
+* Passwords are Fernet-encrypted before reaching SQLite and are only returned by the reveal call (needs the permission, an unlocked PIN session, CSRF token). Logins and the PIN have 5-try/60 s lockouts. POSTs are CSRF-protected.
+* The PIN is a second gate on top of the group permission. It gates the UI; anyone with the database file and key can decrypt.
+* With no `LAN_ENCRYPTION_KEY`, the key file sits next to the database inside the container.
+* Traffic is plain HTTP: put a reverse proxy with HTTPS in front if you do not trust the network. Do not expose the port to the internet.
+* "Test connection" lets users with Add/Edit rights probe hosts from the server; that is why it needs those permissions.
 
-## Security model (be aware of what it does and does not do)
-* Passwords: Fernet (AES-128-CBC + HMAC) encrypted before they reach SQLite. They are only returned by `POST /credentials/<id>/reveal`, which needs an unlocked session, and are never in lists, search, logs or HTML.
-* PIN: hashed (Werkzeug scrypt/pbkdf2), 5 wrong tries = 60 s lockout, auto-lock after N minutes idle (Settings), manual "Lock credentials".
-* The PIN gates the **UI**. Whoever holds both the database and the encryption key can decrypt everything, so back both up carefully and separately.
-* Forgot the PIN? Stop the app and run `sqlite3 data/lan_manager.db "update settings set setting_value='' where setting_key='pin_hash'"`, then set a new PIN. Passwords stay readable because the key is unchanged.
-* There is no login for the rest of the app (LAN-only, as specified). Do not expose port 8080 to the internet. POST requests are CSRF-protected.
-* Plain HTTP on a LAN means the PIN and revealed passwords cross the network unencrypted; put it behind a reverse proxy with HTTPS if that matters.
-
-## Backup and restore
-Back up **both** `data/lan_manager.db` and the encryption key (env var or `data/encryption.key`).
-* Backup (safe while running): `sqlite3 data/lan_manager.db ".backup 'backup-$(date +%F).db'"`
-* Restore: `docker compose down`, replace `data/lan_manager.db` (delete any `-wal`/`-shm` files beside it), make sure `LAN_ENCRYPTION_KEY` is the same key, `docker compose up -d`.
-  With a different key, everything works except revealing old passwords (the UI reports a decryption error).
+## Data lives in the container - backup before you re-create it
+Data survives stop/start/restart and host reboots, but **not** removing or re-creating the container (including `docker compose down` or `up --force-recreate` to update the code).
+```
+docker stop lan-manager
+docker cp lan-manager:/home/user/App/data ./lan-backup        # database + key (a copy only when you run this)
+docker start lan-manager
+```
+Restore into a new container: `docker cp ./lan-backup/. lan-manager:/home/user/App/data/` then `docker restart lan-manager`.
 
 ## Migrations
-`PRAGMA user_version` tracks the schema. New DB -> created at latest version. Existing DB -> before applying pending steps from `app/migrations.py` the file is copied to `lan_manager.db.bak-v<N>`.
-To change the schema: edit `models.py` and append `(version, ["ALTER TABLE ..."])` to `MIGRATIONS`.
-
-## Design decisions
-* Service username/password fields from the spec are not stored on the service itself; they live in Credentials (encrypted, linked to the service and shown on its page behind the PIN), so no plaintext ever sits in the services table.
-* Deleting a device deletes its services; credentials are kept and unlinked rather than destroyed. Deleting a managing service just clears the link.
-* A single per-target "timeout" applies to whichever check type runs; global TCP and HTTP timeouts are separate.
-* HTTPS certificates are not verified in health checks (typical for LAN self-signed certs).
-* Timestamps are stored in UTC and displayed in the configured timezone.
+`PRAGMA user_version` tracks the schema (now version 2). On start, an existing database is copied to `lan_manager.db.bak-v<N>` and pending steps in `app/migrations.py` run. To change the schema, edit `models.py` and append a step to `MIGRATIONS`.
 
 ## Layout
-`__main__.py` (waitress server) - `app/` : `models`, `monitor` (checks + scheduler), `security`, `settings`, `validators`, `migrations`, `views_*`, `templates/`, `static/`.
+`__main__.py` - `app/`: `models`, `auth` (users/groups/permissions), `monitor` (checks, test, scheduler), `security`, `settings`, `validators`, `migrations`, `views_*`, `templates/`, `static/`.

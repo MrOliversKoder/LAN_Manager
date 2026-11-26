@@ -1,14 +1,15 @@
-from flask import Blueprint, abort, flash, redirect, render_template, request, url_for
+from flask import Blueprint, abort, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import or_
 
-from . import monitor, security, validators as V
-from .models import db, Credential, Device, MonitorHistory as H, Service
+from . import auth, monitor, security, settings as S, validators as V
+from .models import db, Credential, Device, MonitorHistory as H, Service, build_url
 
 bp = Blueprint("inv", __name__)
 
 DEVICE_TYPES = ["Server", "NAS", "Desktop", "Raspberry Pi", "Network equipment", "Virtual machine", "Other"]
 MON_KEYS = ["mon_enabled", "check_method", "timeout", "retries", "retry_delay"]
-DEVICE_KEYS = ["name", "ip_address", "hostname", "description", "device_type", "notes", "check_port"] + MON_KEYS
+DEVICE_KEYS = ["name", "ip_address", "hostname", "description", "device_type", "notes", "check_port",
+               "web_protocol", "web_port", "web_path", "web_url"] + MON_KEYS
 SERVICE_KEYS = ["name", "description", "device_id", "ip_address", "port", "protocol", "access_path",
                 "quick_access_url", "management_type", "management_service_id", "management_url",
                 "ssh_host", "ssh_port", "ssh_username", "management_notes", "notes",
@@ -27,7 +28,7 @@ def _data(obj, keys):
 def _mon_fields(f, is_device):
     return dict(
         mon_enabled="mon_enabled" in request.form,
-        check_method=f.get("check_method", V.choice, ("ping", "tcp") if is_device else ("tcp", "tcp_http")),
+        check_method=f.get("check_method", V.choice, ("ping", "tcp", "http") if is_device else ("tcp", "tcp_http", "http", "ping")),
         timeout=f.get("timeout", V.number, float, 0.5, 60, "Timeout"),
         retries=f.get("retries", V.number, int, 0, 10, "Retries"),
         retry_delay=f.get("retry_delay", V.number, int, 0, 3600, "Retry delay"))
@@ -40,6 +41,8 @@ def _status_filter(items, st, wanted):
 # ---- dashboard & search ------------------------------------------------------------
 @bp.route("/")
 def dashboard():
+    if not auth.can("view"):
+        return redirect(url_for(auth.landing()))
     devices = Device.query.order_by(Device.name).all()
     services = Service.query.order_by(Service.name).all()
     return render_template("dashboard.html", devices=devices, services=services, dst=monitor.summaries("device"),
@@ -48,6 +51,7 @@ def dashboard():
 
 @bp.route("/search")
 def search():
+    auth.require("view")
     q = request.args.get("q", "").strip()
     devices = services = creds = []
     if q:
@@ -58,7 +62,7 @@ def search():
         services = Service.query.outerjoin(Device).filter(or_(
             Service.name.ilike(like), Service.description.ilike(like), Service.ip_address.ilike(like),
             Device.ip_address.ilike(like), Device.name.ilike(like))).order_by(Service.name).all()
-        if security.is_unlocked():
+        if auth.can("cred_view") and security.is_unlocked():
             creds = Credential.query.outerjoin(Service).filter(or_(
                 Credential.description.ilike(like), Credential.username.ilike(like),
                 Credential.login_url.ilike(like), Service.name.ilike(like))).all()
@@ -69,6 +73,7 @@ def search():
 # ---- devices -------------------------------------------------------------------------
 @bp.route("/devices")
 def devices():
+    auth.require("view")
     q, status = request.args.get("q", "").strip(), request.args.get("status", "")
     query = Device.query
     if q:
@@ -82,6 +87,7 @@ def devices():
 
 @bp.route("/devices/<int:id>")
 def device_detail(id):
+    auth.require("view")
     d = db.get_or_404(Device, id)
     hist = H.query.filter_by(target_type="device", target_id=id).order_by(H.id.desc()).limit(15).all()
     return render_template("device_detail.html", d=d, s=monitor.summaries("device")[id],
@@ -91,6 +97,7 @@ def device_detail(id):
 @bp.route("/devices/new", methods=["GET", "POST"])
 @bp.route("/devices/<int:id>/edit", methods=["GET", "POST"])
 def device_form(id=None):
+    auth.require("edit" if id else "add")
     d = db.get_or_404(Device, id) if id else None
     errors = {}
     if request.method == "POST":
@@ -98,8 +105,14 @@ def device_form(id=None):
         vals = dict(name=f.get("name", V.text, "Name", True, 120), ip_address=f.get("ip_address", V.ip),
                     hostname=f.get("hostname", V.host), description=f.get("description", V.text, "Description"),
                     device_type=f.get("device_type", V.text, "Type", False, 60),
-                    notes=f.get("notes", V.text, "Notes", False, 5000), check_port=f.get("check_port", V.port))
+                    notes=f.get("notes", V.text, "Notes", False, 5000), check_port=f.get("check_port", V.port),
+                    web_protocol=f.get("web_protocol", V.choice, ("", "http", "https")) or None,
+                    web_port=f.get("web_port", V.port), web_path=V.path(request.form.get("web_path")),
+                    web_url=f.get("web_url", V.url))
         vals.update(_mon_fields(f, True))
+        if vals["check_method"] == "http" and not (vals["web_url"] or vals["web_port"] or vals["web_protocol"]) \
+                and "web_url" not in f.errors:
+            f.errors["web_url"] = "Set a web address (protocol/port or a custom URL) to use HTTP checks"
         if vals["check_method"] == "tcp" and not vals["check_port"] and "check_port" not in f.errors:
             f.errors["check_port"] = "A port is required for TCP checks"
         errors = f.errors
@@ -116,6 +129,7 @@ def device_form(id=None):
 
 @bp.route("/devices/<int:id>/delete", methods=["POST"])
 def device_delete(id):
+    auth.require("delete")
     d = db.get_or_404(Device, id)
     monitor.purge_history("service", [s.id for s in d.services])
     monitor.purge_history("device", [id])
@@ -128,6 +142,7 @@ def device_delete(id):
 # ---- services ------------------------------------------------------------------------
 @bp.route("/services")
 def services():
+    auth.require("view")
     q, dev, mt = request.args.get("q", "").strip(), request.args.get("device", type=int), request.args.get("mtype", "")
     query = Service.query.outerjoin(Device)
     if q:
@@ -144,6 +159,7 @@ def services():
 
 @bp.route("/services/<int:id>")
 def service_detail(id):
+    auth.require("view")
     s = db.get_or_404(Service, id)
     hist = H.query.filter_by(target_type="service", target_id=id).order_by(H.id.desc()).limit(15).all()
     return render_template("service_detail.html", s=s, st=monitor.summaries("service")[id], hist=hist)
@@ -152,6 +168,7 @@ def service_detail(id):
 @bp.route("/services/new", methods=["GET", "POST"])
 @bp.route("/services/<int:id>/edit", methods=["GET", "POST"])
 def service_form(id=None):
+    auth.require("edit" if id else "add")
     s = db.get_or_404(Service, id) if id else None
     errors = {}
     if request.method == "POST":
@@ -199,9 +216,38 @@ def service_form(id=None):
 
 @bp.route("/services/<int:id>/delete", methods=["POST"])
 def service_delete(id):
+    auth.require("delete")
     s = db.get_or_404(Service, id)
     monitor.purge_history("service", [id])
     db.session.delete(s)  # linked credentials are kept (unlinked), never silently destroyed
     db.session.commit()
     flash("Service deleted", "ok")
     return redirect(url_for("inv.services"))
+
+
+# ---- "Test connection" (used by the Add/Edit forms; nothing is saved) --------------------
+@bp.route("/api/test-check", methods=["POST"])
+def test_check():
+    auth.require("add", "edit")
+    kind = "device" if request.args.get("kind") == "device" else "service"
+    f = V.Form(request.form)
+    timeout = f.get("timeout", V.number, float, 0.5, 10, "Timeout") or S.get_float("tcp_timeout")
+    if kind == "device":
+        host = f.get("ip_address", V.ip)
+        port = f.get("check_port", V.port) or f.get("web_port", V.port)
+        url = f.get("web_url", V.url) or (build_url(request.form.get("web_protocol") or "http", host,
+                                                    port if request.form.get("web_port") else None,
+                                                    V.path(request.form.get("web_path")))
+                                         if request.form.get("web_port") or request.form.get("web_protocol") else None)
+    else:
+        dev = db.session.get(Device, request.form.get("device_id", type=int)) if request.form.get("device_id") else None
+        host = f.get("ip_address", V.ip, False) or (dev.ip_address if dev else None)
+        proto = request.form.get("protocol") if request.form.get("protocol") in ("http", "https") else "http"
+        port = f.get("port", V.port) or (443 if proto == "https" else 80)
+        url = build_url(proto, host, f.get("port", V.port), V.path(request.form.get("access_path")))
+        if not host and "ip_address" not in f.errors:
+            f.errors["ip_address"] = "Choose a device or enter an IP address first"
+    if f.errors or not host:
+        return jsonify(error=" ".join(f.errors.values()) or "Enter an IP address first"), 400
+    results, pick = monitor.run_test(kind, host, port, url, timeout)
+    return jsonify(results=results, recommended=pick, host=host)

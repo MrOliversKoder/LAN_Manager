@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% from "_m.html" import csrf with context %}
+{% block title %}Groups{% endblock %}
+{% block content %}
+<div class="bar"><h1>Groups</h1><span><a class="btn" href="{{ url_for('admin.users') }}">Users</a> <a class="btn primary" href="{{ url_for('admin.group_form') }}">Add group</a></span></div>
+<table class="grid"><thead><tr><th>Group</th><th>Can do</th><th>Users</th><th></th></tr></thead>
+{% for g in groups %}<tr><td><b>{{ g.name }}</b><br><span class="sub">{{ g.description or '' }}</span></td>
+<td class="sub">{% for p in perms %}{% if p in g.perm_set %}{{ perms[p] }}{{ '; ' if not loop.last }}{% endif %}{% endfor %}</td><td>{{ g.users|length }}</td>
+<td class="act">{% if g.is_system %}<span class="sub">Built in</span>{% else %}<a class="btn sm" href="{{ url_for('admin.group_form', id=g.id) }}">Edit</a>
+<form method="post" action="{{ url_for('admin.group_delete', id=g.id) }}" class="inline" data-confirm="Delete group {{ g.name }}?">{{ csrf() }}<button class="btn sm danger">Delete</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% endblock %}

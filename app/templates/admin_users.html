@@ -1,0 +1,10 @@
+{% extends "base.html" %}{% from "_m.html" import csrf with context %}
+{% block title %}Users{% endblock %}
+{% block content %}
+<div class="bar"><h1>Users</h1><span><a class="btn" href="{{ url_for('admin.groups') }}">Groups</a> <a class="btn primary" href="{{ url_for('admin.user_form') }}">Add user</a></span></div>
+<table class="grid"><thead><tr><th>Username</th><th>Group</th><th>Status</th><th>Last login</th><th></th></tr></thead>
+{% for u in users %}<tr><td>{{ u.username }}{% if u.id == current_user.id %} <span class="sub">(you)</span>{% endif %}</td><td>{{ u.group.name }}</td>
+<td>{{ 'Active' if u.is_active else 'Disabled' }}</td><td>{{ u.last_login|localtime }}</td>
+<td class="act"><a class="btn sm" href="{{ url_for('admin.user_form', id=u.id) }}">Edit</a>
+{% if u.id != current_user.id %}<form method="post" action="{{ url_for('admin.user_delete', id=u.id) }}" class="inline" data-confirm="Delete user {{ u.username }}?">{{ csrf() }}<button class="btn sm danger">Delete</button></form>{% endif %}</td></tr>{% endfor %}</table>
+{% endblock %}

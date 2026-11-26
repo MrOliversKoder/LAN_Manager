@@ -10,6 +10,16 @@ def utcnow():
     return datetime.now(timezone.utc).replace(tzinfo=None)
 
 
+def build_url(protocol, host, port, path):
+    if not host:
+        return None
+    if ":" in host:
+        host = f"[{host}]"
+    default = 443 if protocol == "https" else 80
+    shown = f":{port}" if port and port != default else ""
+    return f"{protocol}://{host}{shown}{path or ''}"
+
+
 class Stamped:
     created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
     updated_at = db.Column(db.DateTime, default=utcnow, onupdate=utcnow, nullable=False)
@@ -34,6 +44,19 @@ class Device(Stamped, Monitored, db.Model):
     notes = db.Column(db.Text)
     check_method = db.Column(db.String(10), default="ping", nullable=False)  # ping | tcp
     check_port = db.Column(db.Integer)
+    web_protocol = db.Column(db.String(5))      # http | https | NULL (device has no web interface)
+    web_port = db.Column(db.Integer)
+    web_path = db.Column(db.String(300))
+    web_url = db.Column(db.String(500))         # custom URL, overrides the generated one
+
+    @property
+    def open_url(self):
+        if self.web_url:
+            return self.web_url
+        if self.web_port or self.web_protocol:
+            return build_url(self.web_protocol or "http", self.ip_address, self.web_port, self.web_path)
+        return None
+
     services = db.relationship("Service", backref="device", cascade="all, delete-orphan",
                                foreign_keys="Service.device_id", order_by="Service.name")
 
@@ -71,15 +94,7 @@ class Service(Stamped, Monitored, db.Model):
 
     @property
     def base_url(self):
-        host = self.host
-        if not host:
-            return None
-        if ":" in host:
-            host = f"[{host}]"
-        default = 443 if self.protocol == "https" else 80
-        port = f":{self.port}" if self.port and self.port != default else ""
-        path = self.access_path or ""
-        return f"{self.protocol}://{host}{port}{path}"
+        return build_url(self.protocol, self.host, self.port, self.access_path)
 
     @property
     def open_url(self):
@@ -140,3 +155,33 @@ class Setting(db.Model):
     id = db.Column(db.Integer, primary_key=True)
     setting_key = db.Column(db.String(60), unique=True, nullable=False)
     setting_value = db.Column(db.Text, default="")
+
+
+class Group(db.Model):
+    """A named set of permissions. Users belong to exactly one group."""
+    __tablename__ = "groups"
+    id = db.Column(db.Integer, primary_key=True)
+    name = db.Column(db.String(60), unique=True, nullable=False)
+    description = db.Column(db.String(300))
+    permissions = db.Column(db.Text, default="", nullable=False)   # comma separated permission keys
+    is_system = db.Column(db.Boolean, default=False, nullable=False)  # Administrator: locked
+
+    @property
+    def perm_set(self):
+        return {p for p in (self.permissions or "").split(",") if p}
+
+
+class User(db.Model):
+    __tablename__ = "users"
+    id = db.Column(db.Integer, primary_key=True)
+    username = db.Column(db.String(32), unique=True, nullable=False)
+    password_hash = db.Column(db.String(255), nullable=False)
+    group_id = db.Column(db.Integer, db.ForeignKey("groups.id", ondelete="RESTRICT"), nullable=False)
+    is_active = db.Column(db.Boolean, default=True, nullable=False)
+    created_at = db.Column(db.DateTime, default=utcnow, nullable=False)
+    last_login = db.Column(db.DateTime)
+    group = db.relationship("Group", backref="users")
+
+    @property
+    def perms(self):
+        return self.group.perm_set if self.group else set()

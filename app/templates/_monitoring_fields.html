@@ -3,13 +3,17 @@
 <label class="check"><input type="checkbox" name="mon_enabled" {{ 'checked' if data.mon_enabled }}> Include in scheduled checks</label>
 <div class="cols">
 {% if kind == 'device' %}
-{{ select('Check method', 'check_method', data, errors, [('ping','ICMP ping'),('tcp','TCP port')]) }}
+{{ select('Check method', 'check_method', data, errors, [('ping','ICMP ping'),('tcp','TCP port'),('http','HTTP request (needs a web address)')]) }}
 {{ field('TCP port (if TCP)', 'check_port', data, errors, hint='Use TCP when the device blocks ping, e.g. 22 for SSH.') }}
 {% else %}
-{{ select('Check method', 'check_method', data, errors, [('tcp','TCP connection'),('tcp_http','TCP + HTTP request')]) }}
+{{ select('Check method', 'check_method', data, errors, [('tcp','TCP connection'),('tcp_http','TCP connection + HTTP request'),('http','HTTP request only'),('ping','ICMP ping of the host')]) }}
 {{ field('Expected HTTP status', 'http_expected', data, errors, hint='Blank = any 2xx. Examples: 200, 200-299, 200,301.') }}
 {% endif %}
 {{ field('Timeout (seconds)', 'timeout', data, errors, hint='Blank = global default') }}
 {{ field('Retries', 'retries', data, errors, hint='Blank = global default') }}
 {{ field('Retry delay (seconds)', 'retry_delay', data, errors, hint='Blank = global default') }}
-</div></fieldset>
+</div>
+<div><button type="button" class="btn" id="test-conn" data-url="{{ url_for('inv.test_check', kind=kind) }}">Test connection</button>
+<span class="sub">Tries ping, TCP and HTTP with the values above. Nothing is saved.</span></div>
+<div id="test-out" hidden></div>
+</fieldset>

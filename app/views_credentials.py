@@ -3,7 +3,7 @@ from functools import wraps
 from flask import Blueprint, flash, jsonify, redirect, render_template, request, url_for
 from sqlalchemy import or_
 
-from . import security, validators as V
+from . import auth, security, validators as V
 from .models import db, Credential, Service
 
 bp = Blueprint("cred", __name__, url_prefix="/credentials")
@@ -17,7 +17,10 @@ def _safe_next(default="cred.index"):
 def guard(fn):
     @wraps(fn)
     def wrapper(*a, **kw):
+        auth.require("cred_view")
         if not security.pin_is_set():
+            if not auth.can("settings"):
+                return render_template("pin.html", mode="wait")
             return redirect(url_for("cred.setup", next=request.full_path))
         if not security.is_unlocked():
             if request.path.endswith("/reveal"):
@@ -30,6 +33,7 @@ def guard(fn):
 
 @bp.route("/setup", methods=["GET", "POST"])
 def setup():
+    auth.require("settings")
     if security.pin_is_set():
         return redirect(url_for("cred.unlock"))
     if request.method == "POST":
@@ -48,6 +52,7 @@ def setup():
 
 @bp.route("/unlock", methods=["GET", "POST"])
 def unlock():
+    auth.require("cred_view")
     if not security.pin_is_set():
         return redirect(url_for("cred.setup", next=request.values.get("next", "")))
     if request.method == "POST":
@@ -82,6 +87,7 @@ def index():
 @bp.route("/<int:id>/edit", methods=["GET", "POST"])
 @guard
 def form(id=None):
+    auth.require("cred_manage")
     c = db.get_or_404(Credential, id) if id else None
     errors = {}
     if request.method == "POST":
@@ -119,6 +125,7 @@ def form(id=None):
 @bp.route("/<int:id>/delete", methods=["POST"])
 @guard
 def delete(id):
+    auth.require("cred_manage")
     db.session.delete(db.get_or_404(Credential, id))
     db.session.commit()
     flash("Credential deleted", "ok")

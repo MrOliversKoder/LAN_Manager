@@ -16,7 +16,12 @@ from .models import db
 
 log = logging.getLogger(__name__)
 
-MIGRATIONS = []  # list of (version, [sql statements]); version 1 is the baseline
+MIGRATIONS = [
+    (2, ["ALTER TABLE devices ADD COLUMN web_protocol VARCHAR(5)",
+         "ALTER TABLE devices ADD COLUMN web_port INTEGER",
+         "ALTER TABLE devices ADD COLUMN web_path VARCHAR(300)",
+         "ALTER TABLE devices ADD COLUMN web_url VARCHAR(500)"]),  # users/groups tables come from create_all
+]  # list of (version, [sql statements]); version 1 is the baseline
 LATEST = 1 + len(MIGRATIONS)
 
 

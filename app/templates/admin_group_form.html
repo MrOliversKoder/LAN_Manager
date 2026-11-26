@@ -1,0 +1,11 @@
+{% extends "base.html" %}{% from "_m.html" import field, csrf with context %}
+{% block title %}{{ 'Edit' if g else 'Add' }} group{% endblock %}
+{% block content %}
+<h1>{{ 'Edit ' ~ g.name if g else 'Add group' }}</h1>
+<form method="post" class="form">{{ csrf() }}<div class="cols">{{ field('Name', 'name', data, errors) }}{{ field('Description', 'description', data, errors) }}</div>
+<fieldset><legend>Permissions</legend>
+{% for k, label in perms %}<label class="check"><input type="checkbox" name="perms" value="{{ k }}" {{ 'checked' if k in chosen }}> {{ label }}</label>{% endfor %}
+{% if errors.perms %}<em class="err">{{ errors.perms }}</em>{% endif %}</fieldset>
+<p class="sub">Edit and delete rights are separate from add rights, so you can allow people to add things without letting them change or remove existing ones. Managing users and groups is reserved for the Administrator group.</p>
+<div class="bar"><button class="btn primary">Save group</button><a href="{{ url_for('admin.groups') }}">Cancel</a></div></form>
+{% endblock %}
